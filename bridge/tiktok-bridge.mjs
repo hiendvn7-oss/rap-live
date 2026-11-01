@@ -13,7 +13,11 @@ let status = 'Đang kết nối TikTok…';
 const send = msg => { const s = JSON.stringify(msg); wss.clients.forEach(c => { if (c.readyState === 1) c.send(s); }); };
 const setStatus = text => { status = text; console.log('[TikTok] ' + text); send({ type: 'status', text }); };
 wss.on('connection', ws => { console.log('[Rạp] trang rạp đã nối vào cầu'); ws.send(JSON.stringify({ type: 'status', text: status })); });
-const who = u => ({ id: String(u?.uniqueId || u?.userId || ''), name: String(u?.nickname || u?.uniqueId || 'Khách TikTok').slice(0, 24) });
+// dữ liệu live thật (thư viện 2.5) không có uniqueId: tên @ nằm ở displayId, id số ở idStr / id
+const who = u => {
+  const handle = u?.uniqueId || u?.displayId || '';
+  return { id: String(handle || u?.idStr || u?.id || u?.userId || ''), name: String(u?.nickname || handle || 'Khách TikTok').slice(0, 24) };
+};
 
 if (arg === '--demo') {
   // sự kiện giả để thử rạp khi chưa live
@@ -35,8 +39,9 @@ if (arg === '--demo') {
   let retryTimer = null;
   const retry = (ms, why) => { setStatus(why + ` — thử lại sau ${ms / 1000} giây`); clearTimeout(retryTimer); retryTimer = setTimeout(connect, ms); };
   function connect() {
-    const conn = new TikTokLiveConnection(arg, { signApiKey: process.env.EULER_API_KEY, enableExtendedGiftInfo: true });
-    conn.on('chat', d => send({ type: 'chat', ...who(d.user), text: String(d.comment || '').slice(0, 120) }));
+    // không bật enableExtendedGiftInfo: cần gói Business của Euler Stream; tên quà + số xu đã có sẵn trong giftDetails
+    const conn = new TikTokLiveConnection(arg, { signApiKey: process.env.EULER_API_KEY });
+    conn.on('chat', d => send({ type: 'chat', ...who(d.user), text: String(d.comment ?? d.content ?? '').slice(0, 120) })); // live thật: nội dung ở "content"
     conn.on('member', d => send({ type: 'join', ...who(d.user) }));
     conn.on('gift', d => {
       if (d.giftDetails?.giftType === 1 && !d.repeatEnd) return; // quà chuỗi: chờ hết chuỗi mới tính một lần
