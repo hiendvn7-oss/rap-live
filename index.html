@@ -156,6 +156,7 @@
   .highlight-bar p.hl-status{margin:7px 0 2px;font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none;line-height:1.5;color:rgba(255,223,126,.95)}
   /* Highlight Cam: khung quay phim phủ lên rạp khi đang quay 1 cặp */
   .film-ui{position:fixed;inset:0;z-index:21;pointer-events:none;opacity:0;transition:opacity .3s}
+  .film-ui, #clipPanel{display:none!important} /* Highlight chiếu trên màn LED, không cần khung REC / bảng tải clip */
   .film-ui.on{opacity:1}
   .film-bar{position:absolute;left:0;right:0;height:7vh;background:#000;transform:scaleY(0);transition:transform .55s ease}
   .film-bar.top{top:0;transform-origin:top}
@@ -1941,7 +1942,7 @@ function startHighlightFilm(type, a, b){
   filmCaption.textContent = 'Đang quay: ' + nameA + ' & ' + nameB + ' · chỗ ' + a.id + ' – ' + b.id;
   filmTc.textContent = '0:00 / 0:10';
   filmUi.classList.add('on');
-  startRecording();
+  /* không quay / lưu clip nữa (bỏ bảng "Clip highlight vừa quay", đỡ nặng máy khi live) */
   refreshHlBar();
 }
 function fmtTc(ms){ var s = Math.floor(ms / 1000); return '0:' + (s < 10 ? '0' : '') + s; }
@@ -2018,7 +2019,7 @@ function endHighlightFilm(){
   var pm = hlState.prevMode === 'first' ? 'first' : 'third';
   setCamMode(pm);
   refreshHlBar();
-  toast('Quay xong clip highlight');
+  toast('Highlight xong — cặp tiếp theo sắp lên màn LED!');
 }
 function updateHlEffects(t){
   for(var i=hlEffects.length-1;i>=0;i--){
@@ -3107,7 +3108,8 @@ var voiceSoftPool = [];
 function voiceSoftScore(v){
   var n = (((v && v.name) || '') + ' ' + ((v && v.lang) || '')).toLowerCase();
   var s = 0;
-  if(n.indexOf('hoai my') >= 0 || n.indexOf('hoài my') >= 0) s += 6;
+  if(n.indexOf('hoai my') >= 0 || n.indexOf('hoài my') >= 0 || n.indexOf('hoaimy') >= 0) s += 6;
+  if(n.indexOf('nam minh') >= 0 || n.indexOf('namminh') >= 0) s += 6; /* giọng nam tự nhiên của Edge */
   if(n.indexOf('natural') >= 0) s += 4;
   if(n.indexOf('online') >= 0) s += 3;
   if(n.indexOf('neural') >= 0) s += 3;
@@ -3135,7 +3137,10 @@ var VOICE_PITCH = [1.06, 0.95, 1.1, 0.98, 1.12, 1.0, 0.93, 1.08, 1.03, 0.96, 1.1
 var VOICE_RATE = [0.96, 0.93, 0.98, 0.95, 0.92, 0.97, 0.94, 0.99, 0.93, 0.96, 0.98, 0.94, 0.97, 0.92, 0.95, 0.98, 0.94, 0.96, 0.93, 0.97];
 /* âm lượng voice: nhỏ hơn mức mặc định một chút nhưng vẫn nghe rõ — áp dụng cho voice chat
    thường, voice thoại nhân vật và voice MC highlight (không tắt hẳn) */
-var VOICE_VOLUME = 0.65;
+var VOICE_VOLUME = 1.0; /* nhạc nền đã tự nhỏ lại khi có người nói, giọng để to cho rõ */
+/* giọng tự nhiên (Edge: HoaiMy / NamMinh) giữ nguyên cao độ + tốc độ chuẩn — chỉnh pitch làm giọng tự nhiên bị méo */
+function voiceIsNatural(v){ var n = String(v && v.name || '').toLowerCase(); return n.indexOf('natural') >= 0 || n.indexOf('online') >= 0 || n.indexOf('neural') >= 0; }
+function voiceMC(){ for (var i = 0; i < voicePool.length; i++) { var n = String(voicePool[i].name).toLowerCase(); if (n.indexOf('hoai') >= 0 || n.indexOf('hoài') >= 0) return voicePool[i]; } return voicePool[0]; }
 function speakAs(rec, text){
   if(!voiceOn || !voiceSynth || !text) return;
   try{
@@ -3143,9 +3148,10 @@ function speakAs(rec, text){
     u.lang = 'vi-VN';
     var idx = rec ? rec.index : 0;
     var pool = voiceSoftPool.length ? voiceSoftPool : voicePool;
-    if(pool.length) u.voice = pool[idx % pool.length];
-    u.pitch = VOICE_PITCH[idx % VOICE_PITCH.length];
-    u.rate = VOICE_RATE[idx % VOICE_RATE.length];
+    if(pool.length) u.voice = pool[idx % pool.length]; /* xen kẽ HoaiMy (nữ) / NamMinh (nam) theo chỗ đứng */
+    var nat = voiceIsNatural(u.voice);
+    u.pitch = nat ? 1 : VOICE_PITCH[idx % VOICE_PITCH.length];
+    u.rate = nat ? 1.05 : VOICE_RATE[idx % VOICE_RATE.length];
     u.volume = VOICE_VOLUME;
     voiceSynth.speak(u);
   }catch(e){}
@@ -3155,8 +3161,9 @@ function speakAnnounce(text){
   try{
     var u = new SpeechSynthesisUtterance(text);
     u.lang = 'vi-VN';
-    if(voicePool.length) u.voice = voicePool[0]; /* giọng mềm nhất (điểm cao nhất) cho MC */
-    u.pitch = 1.02; u.rate = 0.95;
+    if(voicePool.length) u.voice = voiceMC(); /* MC luôn là HoaiMy nếu có */
+    var nat = voiceIsNatural(u.voice);
+    u.pitch = nat ? 1 : 1.02; u.rate = nat ? 1.05 : 0.95;
     u.volume = VOICE_VOLUME;
     voiceSynth.speak(u);
   }catch(e){}
@@ -3740,7 +3747,8 @@ function animate(){
     stepNavCamera(dt);
     stepFirstPerson(dt);
     /* đang quay highlight thì Highlight Cam bám cặp được chọn, ưu tiên trên mọi chế độ */
-    if(hlState.filming){ filmCameraStep(dt, t); }
+    /* Highlight giờ CHIẾU LÊN MÀN LED cho cả phòng — camera của bạn đứng yên, không bay xuống sàn nữa */
+    if(hlState.filming && camMode === 'first'){ /* giữ yên */ }
     else if(camMode === 'first'){ applyFirstPerson(); }
     else if(camTween){
       camTween.t += dt * 1000;
@@ -4210,12 +4218,12 @@ function ttPick(a){ return a[Math.floor(Math.random() * a.length)]; }
 setInterval(function () {
   if (!sharedIsHost || hlState.filming) return;
   ttAutoN++;
-  if (ttAutoN % 3 === 0) { ttAnnounce(ttPick(MC_CALLS)); return; }
+  if (ttAutoN % 4 === 0) { ttAnnounce(ttPick(MC_CALLS)); return; } /* MC kêu gọi ~24 giây/lần */
   var bots = seats.filter(ttIsBot); if (!bots.length) return;
   var b = ttPick(bots), nm = ttBotGreetQ.shift();
   var line = nm ? ttPick(['Chào ' + nm + ' nha!', nm + ' ơi ra nhảy chung nè!', 'Hello ' + nm + '! Vào đúng lúc vui luôn!', 'Welcome ' + nm + '! Nhớ follow kênh nha!']) : ttPick(BOT_HYPE);
   ttChat(b.name, b, line, true);
-}, 10000);
+}, 6000); /* bot nói ~6 giây/câu cho sàn luôn rôm rả */
 function ttNeighbors(rec){
   var c = rec.index % COLS, out = [];
   if (c !== 0 && c !== 4) out.push(seats[rec.index - 1]);          /* không tính qua lối đi giữa (cột 4 | 5) */
@@ -4233,7 +4241,7 @@ function ttPairCmd(type, ev, rec){
     if (free) { var moved = ttSeat(ev, free.id); if (moved && moved.id === free.id) { rec = moved; partner = s; } }
   }
   if (!partner || !rec || !rec.avatar) return;
-  ttPairNext = now + 20000;
+  ttPairNext = now + 12000;
   var ch = hlState.chances;
   startHighlightFilm(type, rec, partner);
   hlState.chances = ch; /* lệnh từ TikTok không ăn vào 3 lượt Highlight của chủ phòng */
@@ -4243,11 +4251,11 @@ function ttPairCmd(type, ev, rec){
 }
 /* TỰ ĐỘNG HIGHLIGHT ~45 giây/lần (người xem TikTok không thao tác được): ưu tiên người xem TikTok thật — tự ghép họ
    với người bên cạnh rồi quay lên màn LED; chưa có ai thì ghép 2 bot đứng cạnh nhau cho sàn luôn có chuyện. */
-var ttAutoHlNext = Date.now() + 25000;
+var ttAutoHlNext = Date.now() + 10000;
 setInterval(function () {
   var now = Date.now();
   if (!sharedIsHost || hlState.filming || now < ttAutoHlNext || now < ttPairNext || (typeof npcCur !== 'undefined' && npcCur)) return;
-  ttAutoHlNext = now + 45000;
+  ttAutoHlNext = now + 20000; /* Highlight tự động ~20 giây/lần */
   var r = Math.random(), type = r < 0.5 ? 'couple' : r < 0.8 ? 'talk' : 'argue';
   var tts = Object.keys(sharedPeers).filter(function (k) { return k.indexOf('tt:') === 0 && sharedSeatById(sharedPeers[k].seatId); });
   if (tts.length) {
@@ -4259,8 +4267,21 @@ setInterval(function () {
   var pr = ttPick(pairs), ch = hlState.chances;
   startHighlightFilm(type, pr[0], pr[1]);
   hlState.chances = ch;
-  ttPairNext = now + 20000;
+  ttPairNext = now + 12000;
 }, 5000);
+/* MC TỰ DIỄN không cần quà ~18 giây/lần cho sân khấu luôn có chuyển động; ~2 phút một tiết mục dàn dancer */
+var MC_HYPE = ['Cả bar ơi, quẩy lên nào!', 'MC Thỏ nhảy tặng cả nhà nè!', 'Ai thấy vui thì thả tim đi nào!', 'Nhạc này phải lắc hông mới chịu!',
+  'Thương cả nhà nhiều lắm luôn!', 'Tối nay bar Rạp Live cháy quá!', 'Ai muốn lên màn LED thì gõ ghép đôi nha!'];
+var mcAutoN = 0, mcAutoNext = Date.now() + 8000;
+setInterval(function () {
+  if (!sharedIsHost || hlState.filming || npcCur || npcQ.length || Date.now() < mcAutoNext) return;
+  mcAutoNext = Date.now() + 18000;
+  mcAutoN++;
+  var act = mcAutoN % 7 === 0 ? 'show' : ttPick(['wave', 'jump', 'spin', 'dance', 'heart', 'dance']);
+  var item = { type: 'npc', act: act, line: act === 'show' ? 'Tiết mục đặc biệt! Dàn dancer lên sân khấu nào cả bar ơi!' : ttPick(MC_HYPE), icon: '✨' };
+  ttChat('MC Thỏ', null, item.line, false);
+  npcPlay(item); sharedBroadcast(item);
+}, 3000);
 function ttHandle(ev){
   if (!ev || !ev.type) return;
   if (ev.type === 'status') { ttSetStatus(ev.text); return; }
