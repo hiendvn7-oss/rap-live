@@ -280,6 +280,8 @@
   /* NGƯỜI XEM: ẩn hẳn toàn bộ phần mở/chiếu video (nút Mở video, ô dán link, video mẫu) —
      người xem chỉ ngồi ghế, xem màn hình chung và chat; chỉ Admin mới thêm video được */
   body.role-viewer .videoform{display:none}
+  /* sân khấu concept: không chiếu phim nữa — ẩn khối mở video / chia sẻ màn hình (xóa dòng này để bật lại) */
+  #videoForm{display:none!important}
   /* KICK NGƯỜI (chỉ chủ phòng): panel quản lý người trong phòng, nằm trong dock dưới phần video.
      Người xem bị ẩn hẳn cả panel này; hàm kick trong JS cũng chỉ chạy khi currentRole === 'admin' */
   .kickpanel{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
@@ -498,8 +500,8 @@
 
 <div class="topbar">
   <div class="stats">
-    <div class="stat"><b id="statViewers">14</b><span>đang ngồi xem</span></div>
-    <div class="stat"><b>48</b><span>ghế · 6 hàng A–F</span></div>
+    <div class="stat"><b id="statViewers">14</b><span>đang ở sàn nhảy</span></div>
+    <div class="stat"><b>48</b><span>chỗ đứng · A–F</span></div>
   </div>
 </div>
 
@@ -529,7 +531,7 @@
   </button>
   <div class="dockbody">
   <div class="dockmeta">
-    <span class="seatchip"><span class="dot"></span>Ghế của bạn: <b id="mySeatLabel">C5</b></span>
+    <span class="seatchip"><span class="dot"></span>Chỗ của bạn: <b id="mySeatLabel">C5</b></span>
     <span class="rolechip">Vai trò: <b id="roleLabel">Người xem</b></span>
     <button class="ownerDockBtn" id="ownerDockBtn" type="button">Mở khóa chủ phòng</button>
   </div>
@@ -945,7 +947,7 @@ function drawDemoScreen(t){
   x.fillStyle='#ffffff'; x.font='900 92px "Be Vietnam Pro", sans-serif';
   x.fillText('RẠP LIVE', w/2, 218);
   x.fillStyle='#ffdf7e'; x.font='700 40px "Be Vietnam Pro", sans-serif';
-  x.fillText('Phòng chiếu trực tiếp', w/2, 282);
+  x.fillText('Sân khấu trực tiếp', w/2, 282);
   /* progress */
   var p = (t%24000)/24000;
   x.fillStyle='rgba(255,255,255,0.25)'; roundRect(x, 90, h-44, w-180, 10, 5); x.fill();
@@ -1397,6 +1399,50 @@ function makeAvatar(shirt, skin, hairColor, isMe, seed){
   g.userData.head = upper;
   return g;
 }
+/* NHÂN VẬT ĐỨNG ĐỦ TAY CHÂN (khán giả sàn nhảy, MC Thỏ, dancer): đầu to + tai thỏ + mặt giống mascot gốc,
+   thân áo màu, 2 tay có bàn tay, 2 chân có giày. Gốc toạ độ ở mặt sàn, mặt nhìn về -z (sân khấu).
+   Tay giữ quy ước của mascot cũ (armR: baseZ âm, vẫy = baseZ - 2.35) để code highlight dùng chung được. */
+function makeChibi(bodyColor, accentColor, expr){
+  var g = new THREE.Group(), u = g.userData;
+  var creamM = mat(0xfbeecb, 0.55, 0, 0xfbeecb, 0.12), bodyM = mat(bodyColor, 0.55, 0.05), accM = mat(accentColor, 0.45, 0.1);
+  var pinkM = mat(0xf6a8bc, 0.55, 0, 0xf6a8bc, 0.22);
+  var sph = makeChibi.sph || (makeChibi.sph = new THREE.SphereGeometry(1, 18, 12));
+  function ball(m, sx, sy, sz, x, y, z, parent){
+    var o = new THREE.Mesh(sph, OUTLINE_MAT); o.scale.set(sx * 1.07 + 0.008, sy * 1.07 + 0.008, sz * 1.07 + 0.008); o.position.set(x, y, z); parent.add(o);
+    var b = new THREE.Mesh(sph, m); b.scale.set(sx, sy, sz); b.position.set(x, y, z); b.castShadow = true; parent.add(b);
+    return b;
+  }
+  var hips = new THREE.Group(); hips.position.y = 0.44; g.add(hips); u.hips = hips;
+  [-1, 1].forEach(function(s){
+    var leg = new THREE.Group(); leg.position.set(s * 0.1, 0.02, 0); hips.add(leg);
+    ball(creamM, 0.065, 0.19, 0.065, 0, -0.2, 0, leg);
+    ball(accM, 0.085, 0.06, 0.12, 0, -0.41, -0.035, leg); /* giày, mũi giày hướng về phía mặt */
+    u[s < 0 ? 'legL' : 'legR'] = leg;
+  });
+  ball(bodyM, 0.2, 0.23, 0.165, 0, 0.17, 0, hips);          /* thân áo */
+  ball(creamM, 0.11, 0.12, 0.05, 0, 0.14, -0.135, hips);    /* bụng kem phía trước */
+  [-1, 1].forEach(function(s){
+    var arm = new THREE.Group(); arm.position.set(s * 0.19, 0.32, 0); arm.rotation.z = s * 0.35; hips.add(arm);
+    ball(bodyM, 0.055, 0.15, 0.055, 0, -0.13, 0, arm);      /* tay áo */
+    ball(creamM, 0.058, 0.058, 0.058, 0, -0.29, 0, arm);    /* bàn tay */
+    arm.userData.baseZ = arm.rotation.z; arm.userData.baseX = 0;
+    u[s < 0 ? 'armR' : 'armL'] = arm;
+  });
+  var head = new THREE.Group(); head.position.y = 0.4; hips.add(head); u.head = head;
+  var HY = 0.24;
+  ball(creamM, 0.325, 0.29, 0.25, 0, HY, 0, head);
+  [-1, 1].forEach(function(s){
+    var ear = new THREE.Group(); ear.position.set(s * 0.16, HY + 0.24, 0); ear.rotation.z = -s * 0.12; head.add(ear);
+    ball(creamM, 0.075, 0.19, 0.055, 0, 0.15, 0, ear);
+    var inner = new THREE.Mesh(sph, pinkM); inner.scale.set(0.04, 0.13, 0.02); inner.position.set(0, 0.14, -0.05); ear.add(inner);
+  });
+  ball(accM, 0.075, 0.05, 0.045, 0.2, HY + 0.2, -0.06, head); /* nơ màu nhấn trên đầu */
+  ball(accM, 0.075, 0.05, 0.045, 0.32, HY + 0.2, -0.06, head);
+  var fpParts = buildFaceParts(creamM); fpParts.root.position.set(0, HY, 0); head.add(fpParts.root);
+  applyFaceExpr(fpParts, expr || 'grin');
+  u.faceParts = fpParts; u.faceExpr = expr || 'grin';
+  return g;
+}
 function makeNameSprite(text, isMe){
   var c = document.createElement('canvas'); c.width = 320; c.height = 84;
   var x = c.getContext('2d');
@@ -1414,32 +1460,35 @@ function makeNameSprite(text, isMe){
 var myAvatar = null, myRing = null;
 var nameIdx = 0;
 for(var r=0; r<ROWS.length; r++){
-  var tierY = r * 0.52, tierZ = -1.6 + r * 2.05;
-  /* tier platform — bậc ghế kéo rộng theo phòng */
-  box(28, tierY + 0.24, 1.9, M.tier, 0, (tierY+0.24)/2 - 0.02, tierZ + 0.15, hall).receiveShadow = true;
-  /* dải đèn bậc thang phát sáng ở mép trước mỗi bậc ghế */
-  box(27.6, 0.055, 0.055, M.stepLight, 0, tierY + 0.22, tierZ - 0.78, hall);
-  box(27.6, 0.04, 0.04, M.trim, 0, tierY + 0.1, tierZ - 0.79, hall);
+  /* SÀN NHẢY: bỏ bậc + ghế — 48 "chỗ đứng" vô hình giữ nguyên mã A1…F8 để đồng bộ phòng chung / kick / highlight */
+  var tierY = 0, tierZ = -1.6 + r * 2.05;
   for(var cIdx=0; cIdx<COLS; cIdx++){
     var idx = r*COLS + cIdx;
     var seat = makeSeat(ROWS[r]);
     var sx = (cIdx - (COLS-1)/2) * 2.78; if(cIdx >= 4) sx += 0.85; if(cIdx < 4) sx -= 0.85; /* center aisle gap */
-    seat.group.position.set(sx, tierY + 0.24, tierZ);
+    seat.group.position.set(sx, 0, tierZ);
+    seat.group.traverse(function(o){ if(o.isMesh && o !== seat.hit) o.visible = false; }); /* ẩn ghế, giữ khối bấm chọn chỗ */
     hall.add(seat.group);
-    var rec = {id: ROWS[r] + (cIdx+1), index: idx, group: seat.group, cushionMat: seat.cushionMat, backMat: seat.backMat,
-               occupied:false, isMine:false, name:null, avatar:null, sprite:null, x:sx, y:tierY+0.24, z:tierZ};
+    var spotRing = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 28), new THREE.MeshBasicMaterial({color: 0x7ee0ff, transparent: true, opacity: 0.22, depthWrite: false}));
+    spotRing.rotation.x = -Math.PI / 2; spotRing.position.set(sx, 0.03, tierZ); hall.add(spotRing);
+    var rec = {id: ROWS[r] + (cIdx+1), index: idx, group: seat.group, cushionMat: seat.cushionMat, backMat: seat.backMat, ring: spotRing,
+               occupied:false, isMine:false, name:null, avatar:null, sprite:null, x:sx, y:0, z:tierZ};
     seat.hit.userData.seatIndex = idx; hitMeshes.push(seat.hit); seats.push(rec);
   }
 }
 function paintSeat(rec){
   var col = rec.isMine ? 0xd99a17 : (rec.occupied ? 0x8f2436 : 0x39415f);
+  if(rec.ring){ rec.ring.material.color.setHex(rec.isMine ? 0xf5c542 : (rec.occupied ? 0xff7ab6 : 0x7ee0ff)); rec.ring.material.opacity = rec.isMine ? 0.75 : (rec.occupied ? 0.35 : 0.22); }
   rec.cushionMat.color.setHex(col); rec.backMat.color.setHex(col);
   if(rec.isMine){ rec.cushionMat.emissive = new THREE.Color(0x6b4a05); rec.backMat.emissive = new THREE.Color(0x6b4a05); }
   else { rec.cushionMat.emissive = new THREE.Color(0x000000); rec.backMat.emissive = new THREE.Color(0x000000); }
 }
 function seatAvatar(rec, name, isMe, seed){
   rec.occupied = true; rec.name = name; rec.isMine = !!isMe;
-  var av = makeAvatar(shirtColors[seed % shirtColors.length], skinTones[seed % skinTones.length], [0x1c1512,0x2e1c10,0x0f0f14,0x3a2a18][seed%4], isMe, seed);
+  /* nhân vật đứng đủ tay chân (makeChibi), bọc trong khung lùi 0.46 để code cũ đặt y = rec.y + 0.46 vẫn đứng đúng mặt sàn */
+  var inner = makeChibi(shirtColors[seed % shirtColors.length], [0xe63950, 0x2b6cff, 0x2e9e44, 0x6a3fd0, 0xff9d5c][seed % 5], isMe ? myFaceExpr : MEME_EXPRS[seed % MEME_EXPRS.length].id);
+  inner.position.y = -0.46;
+  var av = new THREE.Group(); av.add(inner); av.userData = inner.userData;
   av.position.set(rec.x, rec.y + 0.46, rec.z + 0.02);
   av.rotation.y = 0; /* mặt mascot hướng về phía màn hình (-z) */
   hall.add(av); rec.avatar = av;
@@ -2102,7 +2151,7 @@ var fp = {yaw: 0, pitch: 0.2, pos: new THREE.Vector3(0, 2.4, 2.5), eyeY: 2.4, le
    Ngoài vùng bệ ghế (|x| > 14), phía trước hàng A và phía sau hàng F là sàn phẳng y = 0. */
 var FP_TIERS = [];
 for(var fpr = 0; fpr < ROWS.length; fpr++){
-  FP_TIERS.push({top: fpr * 0.52 + 0.24, front: (-1.6 + fpr * 2.05) - 0.8, back: (-1.6 + fpr * 2.05) + 1.10});
+  FP_TIERS.push({top: 0 /* sàn nhảy phẳng */, front: (-1.6 + fpr * 2.05) - 0.8, back: (-1.6 + fpr * 2.05) + 1.10});
 }
 function fpGroundAt(x, z){
   if(Math.abs(x) > 14) return 0;
@@ -2120,6 +2169,7 @@ function fpSeatBlocked(x, z){
   for(var i = 0; i < seats.length; i++){
     var rec = seats[i];
     if(rec.index === mySeatIndex && !fp.leftOwnSeat) continue;
+    if(!rec.occupied) continue; /* sàn nhảy: chỗ trống đi qua được, chỉ không đi xuyên người đang đứng */
     if(Math.abs(x - rec.x) < FP_SEAT_HX + FP_RADIUS && Math.abs(z - rec.z) < FP_SEAT_HZ + FP_RADIUS) return true;
   }
   return false;
@@ -3590,13 +3640,22 @@ function animate(){
     /* avatar idle: gentle bob + head sway */
     seats.forEach(function(rec, i){
       if(rec.avatar){
-        var ph = reduced ? 0 : Math.sin(t*0.0016 + i*1.35) * 0.016;
+        /* sàn nhảy: nhún theo nhịp nhạc nền (78 BPM ≈ 0.0082 rad/ms), mỗi người lệch pha một chút */
+        var bt = t * 0.0082 + i * 0.9;
+        var ph = reduced ? 0 : Math.abs(Math.sin(bt)) * 0.1;
         rec.avatar.position.y = rec.y + 0.46 + ph;
-        var head = rec.avatar.userData.head;
+        var ud = rec.avatar.userData, head = ud.head;
         if(head) head.rotation.y = reduced ? 0 : Math.sin(t*0.0007 + i*2.1) * 0.14;
+        if(ud.hips && !reduced && !(rec.hlUntil && t < rec.hlUntil)){
+          ud.hips.rotation.z = Math.sin(bt) * 0.1;
+          ud.armL.rotation.z = ud.armL.userData.baseZ + 0.5 + Math.sin(bt + 0.6) * 0.45;
+          ud.armR.rotation.z = ud.armR.userData.baseZ - 0.5 - Math.sin(bt + 0.6) * 0.45;
+          ud.legL.rotation.x = Math.max(0, Math.sin(bt)) * 0.35; ud.legR.rotation.x = Math.max(0, -Math.sin(bt)) * 0.35;
+        }
       }
     });
     updateBubbles(t);
+    npcTick(t);
     positionCharMenu(); /* menu icon nhân vật bám theo nhân vật khi camera di chuyển */
     updateHlEffects(t);
     updateFilm(t);
@@ -4044,7 +4103,7 @@ function ttAnnounce(text){ if (ttAnnounceQ.length < 4) ttAnnounceQ.push(text); }
 setInterval(function () {
   if (ttJoinNames.length) {
     var n = ttJoinNames.splice(0);
-    ttAnnounce('Chào ' + n.slice(0, 2).join(' và ') + (n.length > 2 ? ' cùng ' + (n.length - 2) + ' bạn nữa' : '') + ' đã vào Rạp Live! Bình luận để có ghế nhé.');
+    ttAnnounce('Chào ' + n.slice(0, 2).join(' và ') + (n.length > 2 ? ' cùng ' + (n.length - 2) + ' bạn nữa' : '') + ' đã vào Rạp Live! Bình luận để lên sàn nhảy nhé.');
   }
 }, 12000);
 setInterval(function () {
@@ -4066,7 +4125,7 @@ function ttHandle(ev){
   if (ev.type === 'gift') {
     var g = ttSeat(ev);
     if (g) { try { showBubble(g, '🎁 ' + ev.gift + ' x' + ev.count); } catch (e) {} }
-    ttAnnounce('Cảm ơn ' + ev.name + ' đã tặng ' + ev.count + ' ' + ev.gift + '!');
+    npcGift(ev);
     return;
   }
   if (ev.type === 'follow') { ttSeat(ev); ttAnnounce('Cảm ơn ' + ev.name + ' đã follow!'); return; }
@@ -4080,6 +4139,265 @@ function ttConnect(){
   ttWs.onclose = function () { ttWs = null; ttSetStatus('chưa nối cầu (chạy bridge/tiktok-bridge.mjs trên máy này)'); };
 }
 setInterval(ttConnect, 8000);
+/* ---------- SÂN KHẤU CONCEPT: bục sân khấu, MC Thỏ, dàn dancer, màn LED, bảng quà ----------
+   Không chiếu phim nữa: màn lớn là màn LED sau sân khấu — bình thường hiện hình concept, khi MC / dancer diễn
+   hoặc có Highlight đôi thì quay cận cảnh lên màn LED cho cả phòng xem. Quà TikTok → MC làm hành động + nói. */
+var STAGE_Y = 0.7, STAGE_Z = -8.4;
+box(23, STAGE_Y, 4.2, mat(0x1b1233, 0.6, 0.15), 0, STAGE_Y / 2, STAGE_Z, hall, true);
+box(23.2, 0.07, 0.12, M.gold, 0, STAGE_Y + 0.02, STAGE_Z + 2.1, hall);
+box(23.2, 0.05, 0.05, M.stepLight, 0, STAGE_Y * 0.5, STAGE_Z + 2.13, hall);
+var npc = makeChibi(0xf5c542, 0xe63950, 'grin');
+npc.userData.base = 1.75; npc.scale.setScalar(1.75); npc.rotation.y = Math.PI;
+npc.position.set(0, STAGE_Y, STAGE_Z + 1.0); hall.add(npc);
+var npcTag = makeNameSprite('🎤 MC Thỏ', true);
+npcTag.scale.set(2.0, 0.52, 1); npcTag.position.set(0, STAGE_Y + 3.55, STAGE_Z + 1.0); hall.add(npcTag);
+var dancers = [[-5.6, 0x5edcff, 0x2b6cff], [-2.9, 0xff7ab6, 0xc2185b], [2.9, 0x9cff8a, 0x2e9e44], [5.6, 0xc79bff, 0x6a3fd0]].map(function (d, i) {
+  var c = makeChibi(d[1], d[2], MEME_EXPRS[(i + 1) % MEME_EXPRS.length].id);
+  c.userData.base = 1.4; c.scale.setScalar(1.4); c.rotation.y = Math.PI;
+  c.position.set(d[0], STAGE_Y, STAGE_Z - 0.1); c.visible = false; hall.add(c);
+  return c;
+});
+var GIFT_ACTS = [
+  { icon: '🌹', name: 'Hoa hồng', keys: ['rose', 'hoa hồng'], act: 'wave', label: 'MC vẫy tay chào', line: 'Cảm ơn {n} tặng hoa hồng! MC Thỏ vẫy tay chào nè!' },
+  { icon: '🎵', name: 'TikTok', keys: ['tiktok'], act: 'jump', label: 'MC nhảy cẫng lên', line: 'Yeah! {n} tặng TikTok, MC Thỏ nhảy lên nào!' },
+  { icon: '🫰', name: 'Tim ngón tay', keys: ['finger heart', 'tim ngón'], act: 'heart', label: 'Bắn tim bay', line: 'Bắn tim cho {n} nè! Thương thương!' },
+  { icon: '🍩', name: 'Bánh vòng', keys: ['doughnut', 'donut', 'bánh'], act: 'spin', label: 'MC xoay một vòng', line: 'Cảm ơn {n}! MC Thỏ xoay một vòng nha!' },
+  { icon: '💐', name: 'Nước hoa', keys: ['perfume', 'nước hoa'], act: 'bow', label: 'MC cúi chào cảm ơn', line: 'MC Thỏ cúi chào cảm ơn {n} nhiều lắm!' },
+  { icon: '🫶', name: 'Hand Hearts', keys: ['hand heart', 'heart me'], act: 'dance', label: 'MC nhảy một điệu', line: 'Nhạc lên! MC Thỏ nhảy tặng {n} nè!' },
+  { icon: '🎉', name: 'Quà ≥ 99 xu', keys: ['confetti', 'corgi'], act: 'party', label: 'Pháo giấy + phóng to', line: 'Wow {n} tặng {g}! Pháo giấy nổ tung nè!' },
+  { icon: '🦁', name: 'Quà lớn ≥ 500 xu', keys: ['lion', 'galaxy', 'universe', 'sư tử', 'thiên hà', 'vũ trụ'], act: 'show', label: 'Dàn dancer lên diễn', line: 'Cả phòng ơi! {n} tặng {g}! Dàn dancer lên sân khấu nào!' }
+];
+var NPC_DUR = { wave: 3000, jump: 2600, heart: 3200, spin: 2400, bow: 2600, dance: 5000, party: 3600, show: 9000 };
+function giftDef(name, diamonds){
+  var low = String(name || '').toLowerCase();
+  for (var i = 0; i < GIFT_ACTS.length; i++) if (GIFT_ACTS[i].keys.some(function (k) { return low.indexOf(k) >= 0; })) return GIFT_ACTS[i];
+  var d = diamonds || 0; /* quà lạ: chọn theo giá trị xu */
+  return d >= 500 ? GIFT_ACTS[7] : d >= 99 ? GIFT_ACTS[6] : d >= 30 ? GIFT_ACTS[5] : GIFT_ACTS[0];
+}
+function npcGift(ev){
+  var def = giftDef(ev.gift, ev.diamonds);
+  var line = def.line.replace('{n}', ev.name).replace('{g}', ev.gift || def.name);
+  if (ev.count > 1) line += ' Tận ' + ev.count + ' lần luôn!';
+  if (ev.demo) line = 'Diễn thử: ' + line;
+  ttChat('MC Thỏ', null, line, false);
+  var item = { type: 'npc', act: def.act, line: line, icon: def.icon };
+  npcPlay(item);
+  if (sharedIsHost) sharedBroadcast(item);
+}
+var npcQ = [], npcCur = null, npcBubble = null;
+function npcPlay(item){ if (npcQ.length < 6) npcQ.push({ act: item.act, line: item.line, icon: item.icon }); }
+/* hiệu ứng emoji bay (tim, pháo giấy, icon quà) */
+var fxTex = {}, fxList = [], fxLast = 0;
+function emojiTex(ch){
+  if (fxTex[ch]) return fxTex[ch];
+  var c = document.createElement('canvas'); c.width = c.height = 96;
+  var x = c.getContext('2d'); x.font = '72px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(ch, 48, 54);
+  var tx = new THREE.CanvasTexture(c); tx.encoding = THREE.sRGBEncoding;
+  return (fxTex[ch] = tx);
+}
+function fxBurst(chars, n, ox, oy, oz, spread){
+  for (var i = 0; i < n; i++) {
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex(chars[i % chars.length]), transparent: true, depthWrite: false }));
+    var s = 0.4 + Math.random() * 0.4; sp.scale.set(s, s, 1); sp.renderOrder = 9;
+    sp.position.set(ox + (Math.random() - 0.5) * spread, oy + Math.random() * 0.5, oz + (Math.random() - 0.5) * 0.6);
+    hall.add(sp);
+    fxList.push({ sp: sp, vx: (Math.random() - 0.5) * 2.2, vy: 1.4 + Math.random() * 2, vz: Math.random() * 1.6, born: performance.now(), life: 2200 + Math.random() * 1400 });
+  }
+}
+/* màn LED: render-to-texture từ camera phụ (cận cảnh MC / toàn sân khấu / cặp Highlight) */
+var ledRT = null, ledCam = new THREE.PerspectiveCamera(34, SCREEN_W / SCREEN_H, 0.1, 80), ledSaved = null, ledMode = null, ledPair = null, ledFrame = 0;
+function ledOn(mode, pair){
+  if (!ledRT) { ledRT = new THREE.WebGLRenderTarget(640, 278); ledRT.texture.encoding = THREE.sRGBEncoding; }
+  if (screenMat.map !== ledRT.texture) { ledSaved = screenMat.map; screenMat.map = ledRT.texture; screenMat.needsUpdate = true; }
+  ledMode = mode; ledPair = pair || null;
+}
+function ledOff(){
+  if (ledRT && screenMat.map === ledRT.texture) { screenMat.map = ledSaved || screenTex; screenMat.needsUpdate = true; }
+  ledSaved = null; ledMode = null; ledPair = null;
+}
+function ledRender(){
+  if (!ledMode || !ledRT || (ledFrame++ % 2)) return;
+  if (ledMode === 'npc') { ledCam.position.set(1.2, STAGE_Y + 2.2, STAGE_Z + 8.5); ledCam.lookAt(0, STAGE_Y + 1.7, STAGE_Z + 1.0); }
+  else if (ledMode === 'stage') { ledCam.position.set(0, STAGE_Y + 3.4, STAGE_Z + 11); ledCam.lookAt(0, STAGE_Y + 1.5, STAGE_Z); }
+  else if (ledMode === 'pair' && ledPair) {
+    var a = ledPair[0], b = ledPair[1], mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
+    ledCam.position.set(mx, 2.4, mz - 4.2); ledCam.lookAt(mx, 1.2, mz); /* nhìn từ phía sân khấu vào mặt hai người */
+  }
+  screenMesh.visible = false; /* tránh vòng lặp: màn LED không tự quay chính nó */
+  renderer.setRenderTarget(ledRT); renderer.render(scene, ledCam); renderer.setRenderTarget(null);
+  screenMesh.visible = true;
+}
+function poseChibi(c, act, k, t, ph){
+  var u = c.userData, y = 0, ry = Math.PI, rx = 0, hz = 0, sc = 1;
+  var aL = u.armL.userData.baseZ, aR = u.armR.userData.baseZ, lL = 0, lR = 0, b = t * 0.012 + (ph || 0);
+  switch (act) {
+    case 'wave': aR = aR - 2.35 + Math.sin(t * 0.022) * 0.4; hz = Math.sin(t * 0.006) * 0.08; break;
+    case 'jump': var j = Math.abs(Math.sin(k * Math.PI * 3)); y = j * 0.9; aL += 2.3 * j; aR -= 2.3 * j; lL = lR = 0.6 * j; break;
+    case 'spin': ry += (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2) * Math.PI * 2; aL += 1.1; aR -= 1.1; break;
+    case 'bow': rx = Math.sin(k * Math.PI) * 0.6; break;
+    case 'heart': aL += 2.2; aR -= 2.2; y = Math.abs(Math.sin(t * 0.008)) * 0.12; break;
+    case 'dance': case 'show':
+      hz = Math.sin(b) * 0.22; y = Math.abs(Math.sin(b)) * 0.28;
+      aL += 1.2 + Math.sin(b) * 1.1; aR -= 1.2 - Math.sin(b) * 1.1; lL = Math.max(0, Math.sin(b)) * 0.7; lR = Math.max(0, -Math.sin(b)) * 0.7; break;
+    case 'party': sc = 1 + 0.45 * Math.sin(k * Math.PI); ry += k * Math.PI * 4; aL += 2.3; aR -= 2.3; y = Math.sin(k * Math.PI) * 0.6; break;
+    default: y = Math.abs(Math.sin(t * 0.0082)) * 0.05; hz = Math.sin(t * 0.0041) * 0.05; /* đứng chờ, nhún nhẹ theo nhạc */
+  }
+  c.position.y = STAGE_Y + y; c.rotation.set(rx, ry, 0); c.scale.setScalar(u.base * sc);
+  u.hips.rotation.z = hz; u.armL.rotation.z = aL; u.armR.rotation.z = aR; u.legL.rotation.x = lL; u.legR.rotation.x = lR;
+}
+function npcBegin(it){
+  var bub = makeBubbleSprite(it.line);
+  var bs = bub.userData.baseScale; bub.scale.set(bs.x * 1.5, bs.y * 1.5, 1);
+  bub.position.set(0, STAGE_Y + 4.5, STAGE_Z + 1.0); hall.add(bub); npcBubble = bub;
+  try { speakAnnounce(it.line); } catch (e) {}
+  var ox = 0, oy = STAGE_Y + 2.6, oz = STAGE_Z + 1.2;
+  if (it.act === 'heart') fxBurst(['❤️', '💖', '💕'], 18, ox, oy, oz, 1.2);
+  else if (it.act === 'party' || it.act === 'show') fxBurst(['🎉', '✨', '🎊', '💖', '⭐'], it.act === 'show' ? 40 : 28, ox, oy, oz, it.act === 'show' ? 12 : 3);
+  else fxBurst([it.icon || '🎁'], 6, ox, oy, oz, 1.4);
+  if (it.act === 'show') dancers.forEach(function (d) { d.visible = true; });
+  ledOn(it.act === 'show' ? 'stage' : 'npc');
+}
+function npcEnd(){
+  if (npcBubble) { hall.remove(npcBubble); if (npcBubble.material.map) npcBubble.material.map.dispose(); npcBubble.material.dispose(); npcBubble = null; }
+  dancers.forEach(function (d) { d.visible = false; });
+  if (ledMode !== 'pair') ledOff();
+}
+function npcTick(t){
+  if (npcCur && t - npcCur.start > npcCur.dur) { npcEnd(); npcCur = null; }
+  if (!npcCur && npcQ.length && !(ledMode === 'pair')) { npcCur = npcQ.shift(); npcCur.start = t; npcCur.dur = NPC_DUR[npcCur.act] || 3000; npcBegin(npcCur); }
+  var k = npcCur ? (t - npcCur.start) / npcCur.dur : 0;
+  poseChibi(npc, npcCur ? npcCur.act : null, k, t, 0);
+  if (npcCur && npcCur.act === 'show') dancers.forEach(function (d, i) {
+    poseChibi(d, 'show', k, t, i * 0.8);
+    var pop = Math.min(1, (t - npcCur.start) / 400, (npcCur.dur - (t - npcCur.start)) / 400); /* bật ra / thu vào */
+    d.scale.setScalar(d.userData.base * Math.max(0.01, pop));
+  });
+  /* hiệu ứng emoji bay */
+  var now = performance.now(), dt = Math.min(0.05, (now - (fxLast || now)) / 1000); fxLast = now;
+  for (var i = fxList.length - 1; i >= 0; i--) {
+    var f = fxList[i], age = now - f.born;
+    f.vy -= 1.2 * dt; f.sp.position.x += f.vx * dt; f.sp.position.y += f.vy * dt; f.sp.position.z += f.vz * dt;
+    f.sp.material.opacity = Math.max(0, 1 - age / f.life);
+    if (age > f.life) { hall.remove(f.sp); f.sp.material.dispose(); fxList.splice(i, 1); }
+  }
+  /* Highlight đôi đang quay ở máy này → chiếu cận cảnh lên màn LED */
+  if (ledMode === 'pair' && !(hlState.filming || (ledPair && ledPair.until && t < ledPair.until))) ledOff();
+  ledRender();
+}
+/* HIGHLIGHT LÊN MÀN LED CHO CẢ PHÒNG: ai bấm Highlight thì cặp đó được quay cận cảnh lên màn LED,
+   gửi qua phòng chung để mọi máy cùng thấy (kèm banner). */
+function hlShowOnLed(kind, a, b, fromNet){
+  if (!a || !b) return;
+  var pair = [a, b]; pair.until = elapsedMs() + (hlState.filmDur || 10000);
+  ledOn('pair', pair);
+  if (fromNet) { try { showHlBanner(kind, (a.name || '') + ' & ' + (b.name || ''), 'Highlight đang chiếu trên màn LED'); } catch (e) {} }
+}
+var startHighlightFilmOrig = startHighlightFilm;
+startHighlightFilm = function (type, a, b) {
+  var r = startHighlightFilmOrig(type, a, b);
+  hlShowOnLed(type, a, b, false);
+  var m = { type: 'hl-show', kind: type, a: a.id, b: b.id };
+  if (sharedActive) { if (sharedIsHost) sharedBroadcast(m); else sharedSendToHost(m); }
+  return r;
+};
+var sharedHandleHostMsgOrig2 = sharedHandleHostMsg;
+sharedHandleHostMsg = function (conn, msg) {
+  if (msg && msg.type === 'hl-show') { hlShowOnLed(msg.kind, sharedSeatById(msg.a), sharedSeatById(msg.b), true); sharedBroadcast(msg, conn && conn.peer); return; }
+  return sharedHandleHostMsgOrig2(conn, msg);
+};
+var sharedHandleViewerMsgOrig2 = sharedHandleViewerMsg;
+sharedHandleViewerMsg = function (msg) {
+  if (msg && msg.type === 'hl-show') { hlShowOnLed(msg.kind, sharedSeatById(msg.a), sharedSeatById(msg.b), true); return; }
+  return sharedHandleViewerMsgOrig2(msg);
+};
+/* BẢNG QUÀ trên màn hình: người xem TikTok thấy tặng quà gì thì MC làm gì. Chủ phòng bấm vào dòng để diễn thử. */
+(function giftBoard(){
+  var small = window.innerWidth <= 680 || window.innerHeight <= 480;
+  var el = document.createElement('div'); el.id = 'giftBoard';
+  el.style.cssText = 'position:fixed;right:12px;top:' + (window.innerWidth <= 680 ? 150 : (window.innerHeight <= 480 ? 130 : 96)) + 'px;z-index:9;background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:7px 10px;font-size:11.5px;white-space:nowrap;box-shadow:0 8px 22px rgba(0,0,0,.4)';
+  var rows = GIFT_ACTS.map(function (g, i) {
+    return '<div class="gb-row" data-i="' + i + '" style="display:flex;gap:7px;align-items:center;padding:2px 0;cursor:pointer"><span style="font-size:15px;width:20px;text-align:center">' + g.icon + '</span><span><b>' + g.name + '</b> <span style="color:var(--muted)">→ ' + g.label + '</span></span></div>';
+  }).join('');
+  el.innerHTML = '<div id="gbHead" style="font-weight:800;color:var(--gold2);cursor:pointer">🎁 Tặng quà — MC Thỏ làm theo <span id="gbArrow">' + (small ? '▸' : '▾') + '</span></div><div id="gbList" style="margin-top:5px;' + (small ? 'display:none' : '') + '">' + rows + '</div>';
+  document.body.appendChild(el);
+  el.querySelector('#gbHead').addEventListener('click', function () {
+    var l = el.querySelector('#gbList'), open = l.style.display === 'none';
+    l.style.display = open ? '' : 'none'; el.querySelector('#gbArrow').textContent = open ? '▾' : '▸';
+  });
+  el.querySelectorAll('.gb-row').forEach(function (r) {
+    r.addEventListener('click', function () {
+      if (currentRole !== 'admin') { toast('Tặng quà trên TikTok để MC Thỏ làm hành động này nhé!'); return; }
+      /* chủ phòng chỉ DIỄN THỬ — quà thật đến từ người xem TikTok qua cầu nối, lời cảm ơn mang tên người tặng */
+      var g = GIFT_ACTS[+r.getAttribute('data-i')];
+      npcGift({ id: '', name: 'bạn khán giả', gift: g.name, count: 1, demo: true });
+    });
+  });
+})();
+/* NHẠC NỀN CHILL tự tạo bằng Web Audio (lofi 78 BPM, không dùng bài hát có bản quyền). Mỗi máy tự phát, có nút bật/tắt;
+   tự hạ nhỏ khi giọng đọc đang nói. */
+var bgm = { ctx: null, on: false, gain: null, timer: null, step: 0, next: 0, noise: null };
+var BGM_STEP = 60 / 78 / 2;
+var BGM_CHORDS = [[57, 60, 64, 67], [53, 57, 60, 64], [55, 59, 62, 65], [52, 55, 59, 62]]; /* Am7 – Fmaj7 – G7 – Em7 */
+var BGM_MELODY = [69, 72, 74, 76, 79, 81];
+function bgmHz(m){ return 440 * Math.pow(2, (m - 69) / 12); }
+function bgmTone(freq, at, dur, type, vol){
+  var c = bgm.ctx, o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, at); g.gain.linearRampToValueAtTime(vol, at + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g); g.connect(bgm.gain); o.start(at); o.stop(at + dur + 0.05);
+}
+function bgmNoise(at, dur, vol, freq, type){
+  var c = bgm.ctx, s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+  s.buffer = bgm.noise; f.type = type; f.frequency.value = freq;
+  g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  s.connect(f); f.connect(g); g.connect(bgm.gain); s.start(at); s.stop(at + dur + 0.02);
+}
+function bgmPlayStep(s, at){
+  var pos = s % 8, chord = BGM_CHORDS[Math.floor(s / 8) % BGM_CHORDS.length];
+  if (pos === 0) { chord.forEach(function (n) { bgmTone(bgmHz(n), at, BGM_STEP * 8, 'triangle', 0.035); }); bgmTone(bgmHz(chord[0] - 12), at, BGM_STEP * 3, 'sine', 0.2); }
+  if (pos === 5) bgmTone(bgmHz(chord[0] - 12), at, BGM_STEP * 2, 'sine', 0.14);
+  if (pos === 0 || pos === 5) { /* kick mềm */
+    var c = bgm.ctx, o = c.createOscillator(), g = c.createGain();
+    o.frequency.setValueAtTime(110, at); o.frequency.exponentialRampToValueAtTime(42, at + 0.18);
+    g.gain.setValueAtTime(0.32, at); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.25);
+    o.connect(g); g.connect(bgm.gain); o.start(at); o.stop(at + 0.3);
+  }
+  if (pos === 4) bgmNoise(at, 0.16, 0.12, 1800, 'bandpass');            /* snare / clap */
+  bgmNoise(at + (s % 2 ? 0.045 : 0), 0.05, 0.035, 7000, 'highpass');    /* hi-hat, hơi swing */
+  if (Math.random() < 0.28) bgmTone(bgmHz(BGM_MELODY[Math.floor(Math.random() * BGM_MELODY.length)]), at, 0.5, 'sine', 0.045);
+}
+function bgmTick(){
+  if (!bgm.on) return;
+  var c = bgm.ctx, speaking = voiceSynth && voiceSynth.speaking;
+  bgm.gain.gain.setTargetAtTime(speaking ? 0.05 : 0.16, c.currentTime, 0.25);
+  while (bgm.next < c.currentTime + 0.3) { bgmPlayStep(bgm.step, bgm.next); bgm.next += BGM_STEP; bgm.step++; }
+}
+function bgmStart(){
+  if (bgm.on) return;
+  try { bgm.ctx = bgm.ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  var c = bgm.ctx; if (c.resume) c.resume();
+  if (!bgm.noise) { bgm.noise = c.createBuffer(1, c.sampleRate, c.sampleRate); var d = bgm.noise.getChannelData(0); for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  if (!bgm.gain) { bgm.gain = c.createGain(); var lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200; bgm.gain.connect(lp); lp.connect(c.destination); }
+  bgm.gain.gain.value = 0.16; bgm.on = true; bgm.next = c.currentTime + 0.1;
+  bgm.timer = setInterval(bgmTick, 100);
+}
+function bgmStop(){ bgm.on = false; clearInterval(bgm.timer); if (bgm.gain) bgm.gain.gain.setTargetAtTime(0.0001, bgm.ctx.currentTime, 0.2); }
+var bgmWanted = true;
+try { bgmWanted = localStorage.getItem('rapBgm') !== 'off'; } catch (e) {}
+var bgmBtn = document.createElement('button');
+bgmBtn.type = 'button'; bgmBtn.className = 'voiceBtn'; bgmBtn.id = 'bgmBtn';
+bgmBtn.style.top = window.innerWidth <= 680 ? '50px' : '60px'; /* ngay dưới nút Voice (cùng class, cùng cột) */
+var vb = document.getElementById('voiceBtn');
+if (vb && vb.parentNode) vb.parentNode.insertBefore(bgmBtn, vb.nextSibling); else document.body.appendChild(bgmBtn);
+function bgmLabel(){ bgmBtn.textContent = (bgmWanted ? '🎵 Nhạc bật' : '🔇 Nhạc tắt'); bgmBtn.setAttribute('aria-pressed', bgmWanted ? 'true' : 'false'); }
+bgmLabel();
+bgmBtn.addEventListener('click', function () {
+  bgmWanted = !bgmWanted; try { localStorage.setItem('rapBgm', bgmWanted ? 'on' : 'off'); } catch (e) {}
+  if (bgmWanted) bgmStart(); else bgmStop(); bgmLabel();
+});
+/* trình duyệt chỉ cho phát âm thanh sau lần chạm / bấm đầu tiên (ví dụ nút "Vào rạp") */
+document.addEventListener('pointerdown', function () { if (bgmWanted) bgmStart(); }, { once: true });
 var roomLinkToggleEl = document.getElementById('roomLinkToggle');
 if (roomLinkToggleEl) roomLinkToggleEl.addEventListener('click', function () {
   var box = document.getElementById('sharedRoomBox');
@@ -4151,6 +4469,7 @@ var sharedHandleViewerMsgOrig = sharedHandleViewerMsg;
 sharedHandleViewerMsg = function (msg) {
   if (msg && msg.type === 'share-stop') { sharedEndRemoteShare(msg.restore); return; }
   if (msg && msg.type === 'clear-bots') { ttClearBots(); return; }
+  if (msg && msg.type === 'npc') { npcPlay(msg); return; }
   return sharedHandleViewerMsgOrig(msg);
 };
 var sharedJoinRoomOrig = sharedJoinRoom;

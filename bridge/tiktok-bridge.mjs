@@ -40,7 +40,8 @@ if (arg === '--demo') {
     conn.on('member', d => send({ type: 'join', ...who(d.user) }));
     conn.on('gift', d => {
       if (d.giftDetails?.giftType === 1 && !d.repeatEnd) return; // quà chuỗi: chờ hết chuỗi mới tính một lần
-      send({ type: 'gift', ...who(d.user), gift: d.giftDetails?.giftName || d.extendedGiftInfo?.name || 'quà', count: d.repeatCount || 1 });
+      send({ type: 'gift', ...who(d.user), gift: d.giftDetails?.giftName || d.extendedGiftInfo?.name || 'quà', count: d.repeatCount || 1,
+        diamonds: d.giftDetails?.diamondCount || d.extendedGiftInfo?.diamond_count || 0 });
     });
     conn.on('follow', d => send({ type: 'follow', ...who(d.user) }));
     conn.on('share', d => send({ type: 'share', ...who(d.user) }));
