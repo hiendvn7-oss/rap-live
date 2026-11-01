@@ -4324,7 +4324,6 @@ function npcGift(ev){
   var def = giftDef(ev.gift, ev.diamonds);
   var line = def.lines[Math.floor(Math.random() * def.lines.length)].replace('{n}', ev.name).replace('{g}', ev.gift || def.name);
   if (ev.count > 1) line += ' Tận ' + ev.count + ' lần luôn!';
-  if (ev.demo) line = 'Diễn thử: ' + line;
   ttChat('MC Thỏ', null, line, false);
   var item = { type: 'npc', act: def.act, line: line, icon: def.icon };
   npcPlay(item);
