@@ -954,7 +954,7 @@ function drawDemoScreen(t){
     x.fillText('→ ' + list[k].label, cx + tx, cy + 72, cw - tx - 8);
   }
   x.textAlign='center'; x.fillStyle='rgba(255,255,255,0.85)'; x.font='600 22px "Be Vietnam Pro", sans-serif';
-  x.fillText('🐰 Vào live là có nhân vật trên sàn nhảy  •  Gõ "ghế C3" để đổi chỗ', w/2, h - 14);
+  x.fillText('💬 Gõ "ghép đôi" • "cãi nhau" • "trò chuyện" để lên màn LED  •  "ghế C3" để đổi chỗ', w/2, h - 14);
   if(Math.floor(t/620)%2===0 || reduced){ /* LIVE badge */
     x.fillStyle='#e63950'; roundRect(x, 18, 14, 96, 34, 17); x.fill();
     x.fillStyle='#fff'; x.font='800 19px "Be Vietnam Pro", sans-serif'; x.fillText('● LIVE', 66, 38);
@@ -4134,8 +4134,16 @@ function ttClearBots(){
   seats.forEach(function (s) { if (s.occupied && !s.isMine && !keep[s.id]) sharedFreeSeat(s); });
   sharedUpdateCount();
 }
+function ttIsBot(s){
+  if (!s || !s.occupied || s.isMine || !s.avatar) return false;
+  for (var k in sharedPeers) if (sharedPeers[k].seatId === s.id) return false;
+  return true;
+}
 function ttFreeOneSeat(){
   for (var i = 0; i < seats.length; i++) if (!seats[i].occupied) return seats[i];
+  /* hết chỗ: bot nhường trước (khách web thấy chỗ đó được thay bằng người thật qua peer-seat) */
+  var bots = seats.filter(ttIsBot);
+  if (bots.length) { var bt = bots[Math.floor(Math.random() * bots.length)]; sharedFreeSeat(bt); return bt; }
   /* hết ghế: mời người TikTok im lặng lâu nhất ra để nhường chỗ */
   var oldest = null;
   Object.keys(ttLast).forEach(function (id) { if (sharedPeers[ttPid(id)] && (!oldest || ttLast[id] < ttLast[oldest])) oldest = id; });
@@ -4148,7 +4156,6 @@ function ttFreeOneSeat(){
 }
 function ttSeat(ev, wantedId){
   if (!ev.id) return null;
-  if (!ttOn) { ttOn = true; ttClearBots(); sharedBroadcast({ type: 'clear-bots' }); }
   var pid = ttPid(ev.id);
   if (ttLast[ev.id] && !sharedPeers[pid]) return null; /* đã bị chủ phòng kick: vẫn hiện chat, không cho ngồi lại */
   ttLast[ev.id] = Date.now();
@@ -4187,6 +4194,53 @@ setInterval(function () {
   try { speakAnnounce(t); } catch (e) {}
   if (typeof npc !== 'undefined') npc.userData.talkUntil = elapsedMs() + Math.min(5000, Math.max(1200, t.length * 70)); /* MC há mồm khi chào / cảm ơn */
 }, 4000);
+/* ---------- KHÔNG KHÍ TỰ ĐỘNG + LỆNH ĐÔI ---------- */
+var ttBotGreetQ = [], ttAutoN = 0, ttPairNext = 0;
+var BOT_HYPE = ['Quẩy lên cả nhà ơi!', 'Ai chưa follow thì follow kênh đi nè!', 'Tặng hoa cho MC vẫy tay đi mọi người!',
+  'Bình luận "ghép đôi" là được ghép cặp đó nha!', 'Nhạc chill quá trời luôn!', 'MC Thỏ lắc hông dẻo ghê!',
+  'Thả tim cho live đi cả nhà!', 'Ai muốn cãi nhau với mình thì gõ "cãi nhau" nè!', 'Tối nay bar đông vui thật sự!'];
+var MC_CALLS = ['Ai chưa follow thì bấm follow để tối nào cũng gặp MC Thỏ nha!',
+  'Bình luận "ghép đôi" để MC ghép cặp cho bạn với người bên cạnh nè!',
+  'Tặng một bông hồng là MC Thỏ vẫy tay chào bạn liền!',
+  'Gõ "cãi nhau" hoặc "trò chuyện" để được lên màn LED nào!',
+  'Thả tim thật nhiều cho bar Rạp Live nóng lên nào cả nhà!',
+  'Quà từ 500 xu là cả dàn dancer lên sân khấu nha!'];
+function ttPick(a){ return a[Math.floor(Math.random() * a.length)]; }
+/* mỗi 10 giây một câu: bot chào tên người mới vào, không có ai mới thì bot hô hào; cứ 3 lượt thì MC kêu gọi */
+setInterval(function () {
+  if (!sharedIsHost || hlState.filming) return;
+  ttAutoN++;
+  if (ttAutoN % 3 === 0) { ttAnnounce(ttPick(MC_CALLS)); return; }
+  var bots = seats.filter(ttIsBot); if (!bots.length) return;
+  var b = ttPick(bots), nm = ttBotGreetQ.shift();
+  var line = nm ? ttPick(['Chào ' + nm + ' nha!', nm + ' ơi ra nhảy chung nè!', 'Hello ' + nm + '! Vào đúng lúc vui luôn!', 'Welcome ' + nm + '! Nhớ follow kênh nha!']) : ttPick(BOT_HYPE);
+  ttChat(b.name, b, line, true);
+}, 10000);
+function ttNeighbors(rec){
+  var c = rec.index % COLS, out = [];
+  if (c !== 0 && c !== 4) out.push(seats[rec.index - 1]);          /* không tính qua lối đi giữa (cột 4 | 5) */
+  if (c !== COLS - 1 && c !== 3) out.push(seats[rec.index + 1]);
+  return out.filter(Boolean);
+}
+/* người xem TikTok gõ "ghép đôi" / "cãi nhau" / "trò chuyện": đứng cạnh một người rồi Highlight Cam quay cặp đó lên màn LED */
+function ttPairCmd(type, ev, rec){
+  var now = Date.now();
+  if (hlState.filming || now < ttPairNext) return; /* đang quay cặp khác / hồi 20 giây: bỏ qua cho khỏi spam */
+  var partner = ttNeighbors(rec).filter(function (s) { return s.occupied && s.avatar; })[0];
+  for (var i = 0; i < seats.length && !partner; i++) { /* chưa có ai cạnh: dời người bình luận sang chỗ trống cạnh một người khác */
+    var s = seats[i]; if (!s.occupied || !s.avatar || s === rec) continue;
+    var free = ttNeighbors(s).filter(function (n) { return !n.occupied; })[0];
+    if (free) { var moved = ttSeat(ev, free.id); if (moved && moved.id === free.id) { rec = moved; partner = s; } }
+  }
+  if (!partner || !rec || !rec.avatar) return;
+  ttPairNext = now + 20000;
+  var ch = hlState.chances;
+  startHighlightFilm(type, rec, partner);
+  hlState.chances = ch; /* lệnh từ TikTok không ăn vào 3 lượt Highlight của chủ phòng */
+  ttAnnounce(type === 'couple' ? 'Ồ! ' + ev.name + ' muốn ghép đôi! MC ghép với ' + partner.name + ' nè, lên màn LED luôn!'
+    : type === 'argue' ? ev.name + ' với ' + partner.name + ' cãi nhau rồi kìa! Camera quay liền!'
+    : ev.name + ' đang tám chuyện với ' + partner.name + ', cả bar cùng xem nào!');
+}
 function ttHandle(ev){
   if (!ev || !ev.type) return;
   if (ev.type === 'status') { ttSetStatus(ev.text); return; }
@@ -4195,13 +4249,16 @@ function ttHandle(ev){
     /* ai vào live là có nhân vật trên sàn nhảy ngay, nhân vật tự chào (bong bóng + há mồm); MC chào tên ở hàng đợi bên dưới */
     var jr = ttSeat(ev);
     if (jr) { var hi = ['👋 Xin chào!', 'Hello cả nhà!', 'Mình tới rồi nè!', 'Quẩy thôi!']; try { showBubble(jr, hi[Math.floor(Math.random() * hi.length)]); } catch (e) {} }
-    if (ev.id && !ttGreeted[ev.id]) { ttGreeted[ev.id] = 1; ttJoinNames.push(ev.name); }
+    if (ev.id && !ttGreeted[ev.id]) { ttGreeted[ev.id] = 1; ttJoinNames.push(ev.name); if (ttBotGreetQ.length < 5) ttBotGreetQ.push(ev.name); }
     return;
   }
   if (ev.type === 'chat') {
     var m = /gh[eế]\s*([a-f])\s*([1-8])\b/i.exec(ev.text || '');
     var rec = ttSeat(ev, m ? (m[1].toUpperCase() + m[2]) : null);
     ttChat(ev.name, rec, ev.text, true);
+    var low = String(ev.text || '').toLowerCase();
+    var cmd = /gh[ée]p\s*[đd][ôo]i/.test(low) ? 'couple' : /c[ãa]i\s*nhau/.test(low) ? 'argue' : /(tr[òo]\s*chuy[ệe]n|t[áa]m\s*chuy[ệe]n)/.test(low) ? 'talk' : null;
+    if (cmd && rec) setTimeout(function () { ttPairCmd(cmd, ev, rec); }, 700);
     return;
   }
   if (ev.type === 'gift') {
