@@ -4373,7 +4373,7 @@ function ledRender(){
   screenMesh.visible = true;
 }
 function poseChibi(c, act, k, t, ph){
-  var u = c.userData, y = 0, ry = Math.PI, rx = 0, hz = 0, sc = 1;
+  var u = c.userData, y = 0, ry = Math.PI, rx = 0, hz = 0, hx = 0, sc = 1;
   var aL = u.armL.userData.baseZ, aR = u.armR.userData.baseZ, lL = 0, lR = 0, b = t * 0.012 + (ph || 0);
   switch (act) {
     case 'wave': aR = aR - 2.35 + Math.sin(t * 0.022) * 0.4; hz = Math.sin(t * 0.006) * 0.08; break;
@@ -4382,13 +4382,17 @@ function poseChibi(c, act, k, t, ph){
     case 'bow': rx = Math.sin(k * Math.PI) * 0.6; break;
     case 'heart': aL += 2.2; aR -= 2.2; y = Math.abs(Math.sin(t * 0.008)) * 0.12; break;
     case 'dance': case 'show':
-      hz = Math.sin(b) * 0.22; y = Math.abs(Math.sin(b)) * 0.28;
+      hz = Math.sin(b) * 0.34; hx = Math.sin(b) * 0.06; y = Math.abs(Math.sin(b)) * 0.28;
       aL += 1.2 + Math.sin(b) * 1.1; aR -= 1.2 - Math.sin(b) * 1.1; lL = Math.max(0, Math.sin(b)) * 0.7; lR = Math.max(0, -Math.sin(b)) * 0.7; break;
     case 'party': sc = 1 + 0.45 * Math.sin(k * Math.PI); ry += k * Math.PI * 4; aL += 2.3; aR -= 2.3; y = Math.sin(k * Math.PI) * 0.6; break;
-    default: y = Math.abs(Math.sin(t * 0.0082)) * 0.05; hz = Math.sin(t * 0.0041) * 0.05; /* đứng chờ, nhún nhẹ theo nhạc */
+    default: /* đứng chờ: LẮC HÔNG trái – phải theo nhịp nhạc nền (78 BPM), tay dang, chân đứng yên */
+      var hb = t * 0.0082 + (ph || 0);
+      hz = Math.sin(hb) * 0.26; hx = Math.sin(hb) * 0.07; y = Math.abs(Math.sin(hb)) * 0.04; aL += 0.55; aR -= 0.55;
   }
   c.position.y = STAGE_Y + y; c.rotation.set(rx, ry, 0); c.scale.setScalar(u.base * sc);
-  u.hips.rotation.z = hz; u.armL.rotation.z = aL; u.armR.rotation.z = aR; u.legL.rotation.x = lL; u.legR.rotation.x = lR;
+  u.hips.rotation.z = hz; u.hips.position.x = hx; u.armL.rotation.z = aL; u.armR.rotation.z = aR; u.legL.rotation.x = lL; u.legR.rotation.x = lR;
+  u.legL.rotation.z = u.legR.rotation.z = -hz; /* chân bù góc lắc để vẫn đứng thẳng trên sàn — chỉ hông lắc */
+  if (u.lid) u.lid.rotation.z = -hz * 0.4;     /* đầu nghiêng ngược nhẹ cho dáng lắc hông duyên hơn */
   botTick(u, t, ph || 0);
 }
 function npcBegin(it){
