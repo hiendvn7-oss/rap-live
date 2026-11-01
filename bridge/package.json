@@ -1,0 +1,13 @@
+{
+  "name": "rap-live-tiktok-bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node tiktok-bridge.mjs",
+    "demo": "node tiktok-bridge.mjs --demo"
+  },
+  "dependencies": {
+    "tiktok-live-connector": "2.5.0",
+    "ws": "8.22.1"
+  }
+}

@@ -580,6 +580,9 @@
       <button class="kickbtn" id="kickBtn" type="button">Kick</button>
     </div>
   </div>
+  <div class="remindpanel" id="ttPanel">
+    <p class="remind-title">TikTok Live <span id="ttStatus">— chưa nối cầu (chạy bridge/tiktok-bridge.mjs trên máy này)</span></p>
+  </div>
   <div class="remindpanel" id="roomLinkPanel">
     <p class="remind-title">Link phòng chung <span>— mặc định ẩn để không lộ link trên live</span></p>
     <button class="remindbtn" id="roomLinkToggle" type="button">Hiện link phòng</button>
@@ -3985,6 +3988,98 @@ if (pairShowBtnEl2) pairShowBtnEl2.addEventListener('click', function () {
     sharedBroadcast({ type: 'pair-show', pairs: pairState.list.slice() });
   }
 });
+/* ---------- TIKTOK LIVE: người xem TikTok vào rạp ----------
+   bridge/tiktok-bridge.mjs chạy trên máy chủ phòng, gửi sự kiện live qua ws://127.0.0.1:8787.
+   Bình luận / tặng quà / follow → nhân vật của người đó ngồi vào ghế (gõ "ghế C3" để đổi ghế), bong bóng + giọng đọc;
+   người mới vào được chào gộp, có giãn cách để không đọc liên tục. Chỉ chủ phòng nối cầu, rồi đồng bộ cho khán giả web. */
+var ttWs = null, ttOn = false, ttLast = {}, ttGreeted = {}, ttJoinNames = [], ttAnnounceQ = [];
+var ttStatusEl = document.getElementById('ttStatus');
+function ttPid(id){ return 'tt:' + id; }
+function ttSetStatus(t){ if (ttStatusEl) ttStatusEl.textContent = '— ' + t; }
+function ttClearBots(){
+  var keep = {};
+  Object.keys(sharedPeers).forEach(function (k) { keep[sharedPeers[k].seatId] = 1; });
+  seats.forEach(function (s) { if (s.occupied && !s.isMine && !keep[s.id]) sharedFreeSeat(s); });
+  sharedUpdateCount();
+}
+function ttFreeOneSeat(){
+  for (var i = 0; i < seats.length; i++) if (!seats[i].occupied) return seats[i];
+  /* hết ghế: mời người TikTok im lặng lâu nhất ra để nhường chỗ */
+  var oldest = null;
+  Object.keys(ttLast).forEach(function (id) { if (sharedPeers[ttPid(id)] && (!oldest || ttLast[id] < ttLast[oldest])) oldest = id; });
+  if (!oldest) return null;
+  var p = sharedPeers[ttPid(oldest)], rec = sharedSeatById(p.seatId);
+  if (rec) sharedFreeSeat(rec);
+  delete sharedPeers[ttPid(oldest)]; delete ttLast[oldest];
+  sharedBroadcast({ type: 'peer-leave', peerId: ttPid(oldest), seatId: p.seatId });
+  return rec;
+}
+function ttSeat(ev, wantedId){
+  if (!ev.id) return null;
+  if (!ttOn) { ttOn = true; ttClearBots(); sharedBroadcast({ type: 'clear-bots' }); }
+  var pid = ttPid(ev.id);
+  if (ttLast[ev.id] && !sharedPeers[pid]) return null; /* đã bị chủ phòng kick: vẫn hiện chat, không cho ngồi lại */
+  ttLast[ev.id] = Date.now();
+  var cur = sharedPeers[pid] ? sharedSeatById(sharedPeers[pid].seatId) : null;
+  var want = wantedId ? sharedSeatById(wantedId) : null;
+  if (cur && !(want && !want.occupied)) return cur;
+  var target = (want && !want.occupied) ? want : ttFreeOneSeat();
+  if (!target) return cur;
+  if (cur) sharedFreeSeat(cur);
+  seatAvatar(target, ev.name, false, target.index + 3);
+  sharedPeers[pid] = { name: ev.name, seatId: target.id, seatIndex: target.index };
+  sharedBroadcast({ type: 'peer-seat', peerId: pid, name: ev.name, seatId: target.id });
+  sharedUpdateCount(); if (typeof refreshKickList === 'function') refreshKickList();
+  return target;
+}
+function ttChat(name, rec, text, speak){
+  addMsg(name, text, false);
+  sharedChatHistory.push({ from: name, seatId: rec ? rec.id : null, text: text });
+  sharedBroadcast({ type: 'chat', from: name, seatId: rec ? rec.id : null, text: text });
+  if (rec) { try { showBubble(rec, text); } catch (e) {} }
+  /* không để giọng đọc dồn hàng: đang có câu chờ thì bỏ qua câu này (chữ vẫn hiện) */
+  if (speak && rec && !(voiceSynth && voiceSynth.pending)) speakAs(rec, text);
+}
+function ttAnnounce(text){ if (ttAnnounceQ.length < 4) ttAnnounceQ.push(text); }
+setInterval(function () {
+  if (ttJoinNames.length) {
+    var n = ttJoinNames.splice(0);
+    ttAnnounce('Chào ' + n.slice(0, 2).join(' và ') + (n.length > 2 ? ' cùng ' + (n.length - 2) + ' bạn nữa' : '') + ' đã vào Rạp Live! Bình luận để có ghế nhé.');
+  }
+}, 12000);
+setInterval(function () {
+  var t = ttAnnounceQ.shift(); if (!t) return;
+  ttChat('Rạp Live', null, t, false);
+  try { speakAnnounce(t); } catch (e) {}
+}, 4000);
+function ttHandle(ev){
+  if (!ev || !ev.type) return;
+  if (ev.type === 'status') { ttSetStatus(ev.text); return; }
+  if (!sharedIsHost) return;
+  if (ev.type === 'join') { if (ev.id && !ttGreeted[ev.id]) { ttGreeted[ev.id] = 1; ttJoinNames.push(ev.name); } return; }
+  if (ev.type === 'chat') {
+    var m = /gh[eế]\s*([a-f])\s*([1-8])\b/i.exec(ev.text || '');
+    var rec = ttSeat(ev, m ? (m[1].toUpperCase() + m[2]) : null);
+    ttChat(ev.name, rec, ev.text, true);
+    return;
+  }
+  if (ev.type === 'gift') {
+    var g = ttSeat(ev);
+    if (g) { try { showBubble(g, '🎁 ' + ev.gift + ' x' + ev.count); } catch (e) {} }
+    ttAnnounce('Cảm ơn ' + ev.name + ' đã tặng ' + ev.count + ' ' + ev.gift + '!');
+    return;
+  }
+  if (ev.type === 'follow') { ttSeat(ev); ttAnnounce('Cảm ơn ' + ev.name + ' đã follow!'); return; }
+  if (ev.type === 'share') { ttAnnounce('Cảm ơn ' + ev.name + ' đã chia sẻ live!'); return; }
+}
+function ttConnect(){
+  if (ttWs || !sharedIsHost) return;
+  try { ttWs = new WebSocket('ws://127.0.0.1:8787'); } catch (e) { ttWs = null; return; }
+  ttWs.onopen = function () { ttSetStatus('đã nối cầu, đang chờ TikTok…'); };
+  ttWs.onmessage = function (e) { try { ttHandle(JSON.parse(e.data)); } catch (err) {} };
+  ttWs.onclose = function () { ttWs = null; ttSetStatus('chưa nối cầu (chạy bridge/tiktok-bridge.mjs trên máy này)'); };
+}
+setInterval(ttConnect, 8000);
 var roomLinkToggleEl = document.getElementById('roomLinkToggle');
 if (roomLinkToggleEl) roomLinkToggleEl.addEventListener('click', function () {
   var box = document.getElementById('sharedRoomBox');
@@ -4030,6 +4125,7 @@ var sharedHandleHostMsgOrig = sharedHandleHostMsg;
 sharedHandleHostMsg = function (conn, msg) {
   var r = sharedHandleHostMsgOrig(conn, msg);
   if (msg && msg.type === 'join' && sharing && conn) sharedCallViewer(conn.peer);
+  if (msg && msg.type === 'join' && ttOn && conn) { try { conn.send({ type: 'clear-bots' }); } catch (e) {} }
   return r;
 };
 function sharedShowRemoteShare(stream){
@@ -4054,6 +4150,7 @@ function sharedEndRemoteShare(restore){
 var sharedHandleViewerMsgOrig = sharedHandleViewerMsg;
 sharedHandleViewerMsg = function (msg) {
   if (msg && msg.type === 'share-stop') { sharedEndRemoteShare(msg.restore); return; }
+  if (msg && msg.type === 'clear-bots') { ttClearBots(); return; }
   return sharedHandleViewerMsgOrig(msg);
 };
 var sharedJoinRoomOrig = sharedJoinRoom;
