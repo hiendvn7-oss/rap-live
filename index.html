@@ -3962,6 +3962,71 @@ if (pairShowBtnEl2) pairShowBtnEl2.addEventListener('click', function () {
     sharedBroadcast({ type: 'pair-show', pairs: pairState.list.slice() });
   }
 });
+/* Chia sẻ màn hình qua phòng chung: chủ phòng gọi media PeerJS tới từng khán giả, khán giả gắn luồng đó lên màn rạp. */
+var sharedCalls = {}, sharedViewerStream = null;
+function sharedCallViewer(pid){
+  if (!sharedIsHost || !sharing || !shareStream || !sharedPeer) return;
+  try { if (sharedCalls[pid]) sharedCalls[pid].close(); } catch (e) {}
+  try { sharedCalls[pid] = sharedPeer.call(pid, shareStream); } catch (e) {}
+}
+var showShareOnScreenOrig = showShareOnScreen;
+showShareOnScreen = function (label) {
+  var r = showShareOnScreenOrig(label);
+  if (sharedActive && sharedIsHost && shareStream) Object.keys(sharedConns).forEach(sharedCallViewer);
+  return r;
+};
+var stopShareOrig = stopShare;
+stopShare = function (restoreDemo) {
+  var was = sharing;
+  var r = stopShareOrig(restoreDemo);
+  if (was && sharedIsHost) {
+    Object.keys(sharedCalls).forEach(function (pid) { try { sharedCalls[pid].close(); } catch (e) {} });
+    sharedCalls = {};
+    sharedBroadcast({ type: 'share-stop', restore: restoreDemo !== false });
+  }
+  return r;
+};
+var sharedHandleHostMsgOrig = sharedHandleHostMsg;
+sharedHandleHostMsg = function (conn, msg) {
+  var r = sharedHandleHostMsgOrig(conn, msg);
+  if (msg && msg.type === 'join' && sharing && conn) sharedCallViewer(conn.peer);
+  return r;
+};
+function sharedShowRemoteShare(stream){
+  sharedViewerStream = stream;
+  try { if (!videoEl.paused) videoEl.pause(); } catch (e) {}
+  shareVideoEl.srcObject = stream; shareVideoEl.muted = false;
+  var p = shareVideoEl.play();
+  if (p && p.catch) p.catch(function () {
+    /* trình duyệt chặn tự phát có tiếng: phát câm trước, chạm màn hình là bật tiếng */
+    shareVideoEl.muted = true; shareVideoEl.play().catch(function () {});
+    toast('Chạm vào màn hình để bật tiếng màn chiếu');
+    document.addEventListener('pointerdown', function () { shareVideoEl.muted = false; shareVideoEl.play().catch(function () {}); }, { once: true });
+  });
+  if (!shareTex) { shareTex = new THREE.VideoTexture(shareVideoEl); shareTex.encoding = THREE.sRGBEncoding; }
+  screenMat.map = shareTex; screenMat.needsUpdate = true; usingVideo = true;
+}
+function sharedEndRemoteShare(restore){
+  if (!sharedViewerStream) return;
+  sharedViewerStream = null; shareVideoEl.srcObject = null;
+  if (restore !== false) { screenMat.map = screenTex; screenMat.needsUpdate = true; usingVideo = false; }
+}
+var sharedHandleViewerMsgOrig = sharedHandleViewerMsg;
+sharedHandleViewerMsg = function (msg) {
+  if (msg && msg.type === 'share-stop') { sharedEndRemoteShare(msg.restore); return; }
+  return sharedHandleViewerMsgOrig(msg);
+};
+var sharedJoinRoomOrig = sharedJoinRoom;
+sharedJoinRoom = function (roomId) {
+  var r = sharedJoinRoomOrig(roomId);
+  if (sharedPeer) sharedPeer.on('call', function (call) {
+    if (call.peer !== sharedRoomId) { try { call.close(); } catch (e) {} return; }
+    call.answer();
+    call.on('stream', sharedShowRemoteShare);
+    call.on('close', function () { sharedEndRemoteShare(true); });
+  });
+  return r;
+};
 /* Cổng nhập tên khi mở trang — dùng đúng class roleGate/roleCard sẵn có, không đổi CSS gốc. */
 (function sharedJoinGate(){
   if (document.getElementById('sharedJoinGate')) return;
