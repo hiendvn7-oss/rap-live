@@ -3967,12 +3967,19 @@ var sharedCalls = {}, sharedViewerStream = null;
 function sharedCallViewer(pid){
   if (!sharedIsHost || !sharing || !shareStream || !sharedPeer) return;
   try { if (sharedCalls[pid]) sharedCalls[pid].close(); } catch (e) {}
-  try { sharedCalls[pid] = sharedPeer.call(pid, shareStream); } catch (e) {}
+  try {
+    var call = sharedPeer.call(pid, shareStream);
+    sharedCalls[pid] = call;
+    if (call) call.on('error', function (err) { toast('Không gửi được màn hình tới 1 khán giả: ' + (err && err.type ? err.type : 'lỗi mạng')); });
+  } catch (e) { toast('Không gửi được màn hình: ' + e.message); }
 }
 var showShareOnScreenOrig = showShareOnScreen;
 showShareOnScreen = function (label) {
   var r = showShareOnScreenOrig(label);
-  if (sharedActive && sharedIsHost && shareStream) Object.keys(sharedConns).forEach(sharedCallViewer);
+  if (sharedActive && sharedIsHost && shareStream) {
+    Object.keys(sharedConns).forEach(sharedCallViewer);
+    toast('Đang gửi màn hình cho ' + Object.keys(sharedConns).length + ' khán giả trong phòng chung');
+  }
   return r;
 };
 var stopShareOrig = stopShare;
@@ -4021,8 +4028,10 @@ sharedJoinRoom = function (roomId) {
   var r = sharedJoinRoomOrig(roomId);
   if (sharedPeer) sharedPeer.on('call', function (call) {
     if (call.peer !== sharedRoomId) { try { call.close(); } catch (e) {} return; }
+    toast('Chủ phòng đang chia sẻ màn hình — đang kết nối…');
     call.answer();
-    call.on('stream', sharedShowRemoteShare);
+    call.on('stream', function (s) { sharedShowRemoteShare(s); toast('Đã nhận màn hình của chủ phòng'); });
+    call.on('error', function (err) { toast('Không nhận được màn hình: ' + (err && err.type ? err.type : 'lỗi mạng')); });
     call.on('close', function () { sharedEndRemoteShare(true); });
   });
   return r;
