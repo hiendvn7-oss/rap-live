@@ -954,7 +954,7 @@ function drawDemoScreen(t){
     x.fillText('→ ' + list[k].label, cx + tx, cy + 72, cw - tx - 8);
   }
   x.textAlign='center'; x.fillStyle='rgba(255,255,255,0.85)'; x.font='600 22px "Be Vietnam Pro", sans-serif';
-  x.fillText('💬 Bình luận để lên sàn nhảy  •  Gõ "ghế C3" để đổi chỗ', w/2, h - 14);
+  x.fillText('🐰 Vào live là có nhân vật trên sàn nhảy  •  Gõ "ghế C3" để đổi chỗ', w/2, h - 14);
   if(Math.floor(t/620)%2===0 || reduced){ /* LIVE badge */
     x.fillStyle='#e63950'; roundRect(x, 18, 14, 96, 34, 17); x.fill();
     x.fillStyle='#fff'; x.font='800 19px "Be Vietnam Pro", sans-serif'; x.fillText('● LIVE', 66, 38);
@@ -4172,20 +4172,27 @@ setInterval(function () {
   if (ttJoinNames.length) {
     var n = ttJoinNames.splice(0);
     var who = n.slice(0, 2).join(' và ') + (n.length > 2 ? ' cùng ' + (n.length - 2) + ' bạn nữa' : '');
-    var greet = ['Chào ' + who + ' đã ghé bar Rạp Live! Bình luận để ra sàn nhảy nha.', 'Ơ kìa ' + who + ' tới rồi! Vào quẩy với MC Thỏ nào!', 'Hello ' + who + '! Tặng hoa là MC Thỏ vẫy tay chào liền nè.', who + ' vừa bước vào bar, cả sàn nhảy vỗ tay nào!'];
+    var greet = ['Chào ' + who + ' đã ghé bar Rạp Live! Lên sàn nhảy quẩy thôi!', 'Ơ kìa ' + who + ' tới rồi! Vào quẩy với MC Thỏ nào!', 'Hello ' + who + '! Tặng hoa là MC Thỏ vẫy tay chào liền nè.', who + ' vừa bước vào bar, cả sàn nhảy vỗ tay nào!'];
     ttAnnounce(greet[Math.floor(Math.random() * greet.length)]);
   }
-}, 12000);
+}, 4000); /* MC chào ~4 giây/lần: 1 người thì chào riêng tên, đông thì gộp để giọng đọc không dồn hàng */
 setInterval(function () {
   var t = ttAnnounceQ.shift(); if (!t) return;
-  ttChat('Rạp Live', null, t, false);
+  ttChat('MC Thỏ', null, t, false);
   try { speakAnnounce(t); } catch (e) {}
+  if (typeof npc !== 'undefined') npc.userData.talkUntil = elapsedMs() + Math.min(5000, Math.max(1200, t.length * 70)); /* MC há mồm khi chào / cảm ơn */
 }, 4000);
 function ttHandle(ev){
   if (!ev || !ev.type) return;
   if (ev.type === 'status') { ttSetStatus(ev.text); return; }
   if (!sharedIsHost) return;
-  if (ev.type === 'join') { if (ev.id && !ttGreeted[ev.id]) { ttGreeted[ev.id] = 1; ttJoinNames.push(ev.name); } return; }
+  if (ev.type === 'join') {
+    /* ai vào live là có nhân vật trên sàn nhảy ngay, nhân vật tự chào (bong bóng + há mồm); MC chào tên ở hàng đợi bên dưới */
+    var jr = ttSeat(ev);
+    if (jr) { var hi = ['👋 Xin chào!', 'Hello cả nhà!', 'Mình tới rồi nè!', 'Quẩy thôi!']; try { showBubble(jr, hi[Math.floor(Math.random() * hi.length)]); } catch (e) {} }
+    if (ev.id && !ttGreeted[ev.id]) { ttGreeted[ev.id] = 1; ttJoinNames.push(ev.name); }
+    return;
+  }
   if (ev.type === 'chat') {
     var m = /gh[eế]\s*([a-f])\s*([1-8])\b/i.exec(ev.text || '');
     var rec = ttSeat(ev, m ? (m[1].toUpperCase() + m[2]) : null);
