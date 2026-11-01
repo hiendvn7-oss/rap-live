@@ -3630,6 +3630,8 @@ var sharedPeer = null, sharedMyId = null, sharedRoomId = null;
 var sharedConns = {}, sharedPeers = {}, sharedChatHistory = [], sharedVideo = null;
 var sharedApplying = false, sharedJoined = false, myNickname = 'Bạn';
 var sharedRoomParam = null;
+/* mã phòng cố định: khán giả chỉ cần mở link trang, không cần ?room= */
+var SHARED_FIXED_ROOM = 'raplive-hiendvn7-oss-main';
 try { sharedRoomParam = new URLSearchParams(window.location.search).get('room'); } catch (e) { sharedRoomParam = null; }
 function sharedSeatById(id){ for (var i = 0; i < seats.length; i++) { if (seats[i].id === id) return seats[i]; } return null; }
 function sharedUpdateCount(){ var c = 0; seats.forEach(function (s) { if (s.occupied) c++; }); var el = document.getElementById('statViewers'); if (el) el.textContent = c; }
@@ -3651,7 +3653,7 @@ function sharedRoomBox(){
   var cp = box.querySelector('#sharedCopyBtn');
   if (cp) cp.addEventListener('click', function () {
     var base = window.location.href.split('?')[0].split('#')[0];
-    var link = sharedRoomId ? (base + '?room=' + encodeURIComponent(sharedRoomId)) : window.location.href;
+    var link = (!sharedRoomId || sharedRoomId === SHARED_FIXED_ROOM) ? base : (base + '?room=' + encodeURIComponent(sharedRoomId));
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(link).then(function () { toast('Đã sao chép link phòng chung'); }, function () { toast(link); }); }
       else { toast(link); }
@@ -3828,11 +3830,11 @@ function sharedStartHost(){
   if (sharedIsHost || sharedActive) return;
   if (typeof Peer === 'undefined') { toast('Chưa tải được PeerJS — kiểm tra mạng rồi mở khóa lại.'); return; }
   try {
-    sharedPeer = new Peer();
+    sharedPeer = new Peer(SHARED_FIXED_ROOM);
     sharedPeer.on('open', function (id) {
       sharedIsHost = true; sharedActive = true; sharedMyId = id; sharedRoomId = id; sharedGuestOff = true;
       sharedPeers[id] = { name: myNickname, seatId: seats[mySeatIndex].id, seatIndex: mySeatIndex };
-      sharedShowRoom('Phòng chung đã mở — mã phòng: ' + id + ' — gửi link có ?room=' + id + ' cho khán giả.', true);
+      sharedShowRoom('Phòng chung đã mở — khán giả chỉ cần mở: ' + window.location.href.split('?')[0].split('#')[0], true);
       toast('Đã mở phòng chung. Gửi link phòng cho khán giả.');
     });
     sharedPeer.on('connection', function (conn) {
@@ -3848,7 +3850,16 @@ function sharedStartHost(){
         }
       });
     });
-    sharedPeer.on('error', function (err) { toast('Phòng chung lỗi: ' + (err && err.type ? err.type : 'không kết nối được PeerJS')); });
+    sharedPeer.on('error', function (err) {
+      if (err && err.type === 'unavailable-id' && !sharedIsHost) {
+        /* mã phòng còn bị giữ (vừa tải lại trang / tab chủ phòng khác đang mở): thử lại */
+        toast('Mã phòng đang bận — thử lại sau 4 giây. Đóng tab chủ phòng khác nếu có.');
+        try { sharedPeer.destroy(); } catch (e) {}
+        setTimeout(function () { if (!sharedIsHost && currentRole === 'admin') sharedStartHost(); }, 4000);
+        return;
+      }
+      toast('Phòng chung lỗi: ' + (err && err.type ? err.type : 'không kết nối được PeerJS'));
+    });
   } catch (e) { toast('Không mở được phòng chung: ' + e.message); }
 }
 function sharedJoinRoom(roomId){
@@ -3868,7 +3879,7 @@ function sharedJoinRoom(roomId){
       });
     });
     sharedPeer.on('error', function (err) {
-      if (err && err.type === 'peer-unavailable') { toast('Phòng chưa mở hoặc chủ phòng chưa online. Thử lại sau.'); sharedShowRoom('Phòng chưa mở hoặc chủ phòng chưa online.', false); }
+      if (err && err.type === 'peer-unavailable') { sharedShowRoom('Đang chờ chủ phòng mở phòng… tự kết nối khi chủ phòng online.', false); }
       else { toast('Không kết nối được phòng chung: ' + (err && err.type ? err.type : '')); }
     });
   } catch (e) { toast('Không kết nối được phòng chung: ' + e.message); }
@@ -3889,7 +3900,12 @@ moveMeTo = function (rec) {
 var setRoleOrig = setRole;
 setRole = function (role, silent) {
   var r = setRoleOrig(role, silent);
-  if (role === 'admin' && !sharedRoomParam) sharedStartHost();
+  if (role === 'admin' && !sharedRoomParam && !sharedIsHost) {
+    /* đang ngồi như khán giả (chờ phòng) thì bỏ kết nối đó để lên làm chủ phòng */
+    sharedActive = false; sharedJoined = false;
+    if (sharedPeer) { try { sharedPeer.destroy(); } catch (e) {} sharedPeer = null; }
+    sharedStartHost();
+  }
   return r;
 };
 var playVideoSourceOrig = playVideoSource;
@@ -4026,6 +4042,20 @@ sharedHandleViewerMsg = function (msg) {
 var sharedJoinRoomOrig = sharedJoinRoom;
 sharedJoinRoom = function (roomId) {
   var r = sharedJoinRoomOrig(roomId);
+  var thisPeer = sharedPeer;
+  /* lượt kết nối treo (máy chủ PeerJS không trả lời) thì 15 giây sau tự thử lại */
+  setTimeout(function () {
+    if (sharedPeer !== thisPeer || sharedIsHost || sharedJoined || currentRole === 'admin') return;
+    try { thisPeer.destroy(); } catch (e) {}
+    sharedJoinRoom(roomId);
+  }, 15000);
+  if (sharedPeer) sharedPeer.on('error', function (err) {
+    if (err && err.type === 'peer-unavailable') setTimeout(function () {
+      if (sharedIsHost || sharedJoined || currentRole === 'admin') return;
+      try { sharedPeer.destroy(); } catch (e) {}
+      sharedJoinRoom(roomId);
+    }, 5000);
+  });
   if (sharedPeer) sharedPeer.on('call', function (call) {
     if (call.peer !== sharedRoomId) { try { call.close(); } catch (e) {} return; }
     toast('Chủ phòng đang chia sẻ màn hình — đang kết nối…');
@@ -4051,7 +4081,7 @@ sharedJoinRoom = function (roomId) {
     var v = inp ? inp.value.trim() : '';
     if (v) myNickname = v;
     gate.parentNode.removeChild(gate);
-    if (sharedRoomParam) sharedJoinRoom(sharedRoomParam);
+    if (currentRole !== 'admin') sharedJoinRoom(sharedRoomParam || SHARED_FIXED_ROOM);
     else if (typeof Peer === 'undefined') { toast('Chưa tải được PeerJS — phòng chung cần mạng, bản xem riêng vẫn chạy bình thường.'); }
   });
 })();
