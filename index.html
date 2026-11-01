@@ -915,47 +915,46 @@ screenMesh.position.set(0, SCREEN_Y, SCREEN_Z); hall.add(screenMesh);
 })();
 
 function drawDemoScreen(t){
+  /* MÀN LED SAU SÂN KHẤU (lúc không quay cận cảnh): BẢNG QUÀ — icon quà, tên quà, MC Thỏ làm gì.
+     Mỗi 1,6 giây một dòng sáng lên để người xem TikTok chú ý. */
   var w=1024,h=546, x=sCtx;
-  var hue = 222 + Math.sin(t*0.00016)*22;
+  var hue = 285 + Math.sin(t*0.00016)*25;
   var g = x.createLinearGradient(0,0,w,h);
-  g.addColorStop(0,'hsl('+hue+',62%,16%)'); g.addColorStop(0.55,'hsl('+(hue+38)+',58%,24%)'); g.addColorStop(1,'hsl('+(hue+80)+',52%,13%)');
+  g.addColorStop(0,'hsl('+hue+',70%,14%)'); g.addColorStop(0.55,'hsl('+(hue+30)+',65%,20%)'); g.addColorStop(1,'hsl('+(hue+70)+',60%,11%)');
   x.fillStyle=g; x.fillRect(0,0,w,h);
-  /* moving glow orbs */
-  for(var i=0;i<5;i++){
-    var ox = w*(0.16+0.17*i) + Math.sin(t*0.0006+i*1.7)*46;
-    var oy = h*0.34 + Math.cos(t*0.0005+i*2.1)*30;
-    var rg = x.createRadialGradient(ox,oy,4,ox,oy,120);
-    rg.addColorStop(0,'rgba(120,200,255,0.35)'); rg.addColorStop(1,'rgba(120,200,255,0)');
-    x.fillStyle=rg; x.beginPath(); x.arc(ox,oy,120,0,7); x.fill();
+  for(var i=0;i<4;i++){ /* đốm neon trôi */
+    var ox = w*(0.12+0.26*i) + Math.sin(t*0.0006+i*1.7)*50, oy = h*0.5 + Math.cos(t*0.0005+i*2.1)*120;
+    var rg = x.createRadialGradient(ox,oy,4,ox,oy,150);
+    rg.addColorStop(0, i%2 ? 'rgba(255,90,200,0.22)' : 'rgba(90,220,255,0.2)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+    x.fillStyle=rg; x.beginPath(); x.arc(ox,oy,150,0,7); x.fill();
   }
-  /* stage floor line */
-  x.fillStyle='rgba(0,0,0,0.28)'; x.fillRect(0,h*0.78,w,h*0.22);
-  x.fillStyle='rgba(255,255,255,0.16)'; x.fillRect(0,h*0.78,w,3);
-  /* equalizer */
-  for(var b=0;b<36;b++){
-    var bh = 26 + Math.abs(Math.sin(t*0.0022 + b*0.55)) * 74 + Math.abs(Math.sin(t*0.005+b)) * 18;
-    x.fillStyle = b%5===0 ? 'rgba(245,197,66,0.9)' : 'rgba(94,220,255,0.75)';
-    x.fillRect(52 + b*25.4, h*0.78 - bh, 15, bh);
+  x.textAlign='center'; x.textBaseline='alphabetic';
+  x.shadowColor='#ff5ac8'; x.shadowBlur=18;
+  x.fillStyle='#ffffff'; x.font='900 44px "Be Vietnam Pro", sans-serif';
+  x.fillText('🎁 TẶNG QUÀ — MC THỎ LÀM THEO', w/2, 62);
+  x.shadowBlur=0;
+  var list = (typeof GIFT_ACTS !== 'undefined') ? GIFT_ACTS : [];
+  var hot = Math.floor(t/1600) % Math.max(1, list.length);
+  for(var k=0;k<list.length;k++){
+    var col = k % 2, row = Math.floor(k / 2), cx = 34 + col*489, cy = 88 + row*100, cw = 467, ch = 88;
+    var on = k === hot;
+    x.fillStyle = on ? 'rgba(245,197,66,0.30)' : 'rgba(255,255,255,0.08)';
+    roundRect(x, cx, cy, cw, ch, 18); x.fill();
+    x.strokeStyle = on ? '#f5c542' : 'rgba(255,255,255,0.22)'; x.lineWidth = on ? 4 : 2;
+    roundRect(x, cx, cy, cw, ch, 18); x.stroke();
+    x.fillStyle='#ffffff'; x.textAlign='center'; x.font='54px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+    x.fillText(list[k].icon, cx + 50, cy + 64);
+    x.textAlign='left'; x.fillStyle='#ffffff'; x.font='800 30px "Be Vietnam Pro", sans-serif';
+    x.fillText(list[k].name, cx + 96, cy + 38);
+    x.fillStyle = on ? '#ffe9a3' : '#ffdf7e'; x.font='600 25px "Be Vietnam Pro", sans-serif';
+    x.fillText('→ ' + list[k].label, cx + 96, cy + 72);
   }
-  /* LIVE badge */
-  if(Math.floor(t/620)%2===0 || reduced){
-    x.fillStyle='#e63950'; roundRect(x, 40, 34, 128, 46, 23); x.fill();
-    x.fillStyle='#fff'; x.font='800 25px "Be Vietnam Pro", sans-serif'; x.textAlign='center';
-    x.fillText('● LIVE', 104, 66);
+  x.textAlign='center'; x.fillStyle='rgba(255,255,255,0.85)'; x.font='600 22px "Be Vietnam Pro", sans-serif';
+  x.fillText('💬 Bình luận để lên sàn nhảy  •  Gõ "ghế C3" để đổi chỗ', w/2, h - 14);
+  if(Math.floor(t/620)%2===0 || reduced){ /* LIVE badge */
+    x.fillStyle='#e63950'; roundRect(x, 18, 14, 96, 34, 17); x.fill();
+    x.fillStyle='#fff'; x.font='800 19px "Be Vietnam Pro", sans-serif'; x.fillText('● LIVE', 66, 38);
   }
-  x.textAlign='center';
-  x.fillStyle='#ffffff'; x.font='900 92px "Be Vietnam Pro", sans-serif';
-  x.fillText('RẠP LIVE', w/2, 218);
-  x.fillStyle='#ffdf7e'; x.font='700 40px "Be Vietnam Pro", sans-serif';
-  x.fillText('Sân khấu trực tiếp', w/2, 282);
-  /* progress */
-  var p = (t%24000)/24000;
-  x.fillStyle='rgba(255,255,255,0.25)'; roundRect(x, 90, h-44, w-180, 10, 5); x.fill();
-  x.fillStyle='#f5c542'; roundRect(x, 90, h-44, (w-180)*p, 10, 5); x.fill();
-  /* KHÔNG vẽ thẻ Highlight đôi lên màn chiếu tại thời điểm tạo cặp: cặp vừa tạo chỉ
-     được lưu vào danh sách Highlight đôi. Thẻ cặp chỉ lên màn chiếu trong suất chiếu
-     do Admin bấm nút "Chiếu … cặp Highlight lên màn chiếu" khi đã đủ từ 5 cặp
-     (xem drawPairCardToScreen / startPairShow). */
   screenTex.needsUpdate = true;
 }
 function roundRect(x,px,py,pw,ph,r){ x.beginPath(); x.moveTo(px+r,py); x.arcTo(px+pw,py,px+pw,py+ph,r); x.arcTo(px+pw,py+ph,px,py+ph,r); x.arcTo(px,py+ph,px,py,r); x.arcTo(px,py,px+pw,py,r); x.closePath(); }
@@ -4222,6 +4221,70 @@ var dancers = [[-5.6, 0x5edcff, 0x2b6cff], [-2.9, 0xff7ab6, 0xc2185b], [2.9, 0x9
   c.position.set(d[0], STAGE_Y, STAGE_Z - 0.1); c.visible = false; hall.add(c);
   return c;
 });
+/* ---------- KHÔNG KHÍ QUẦY BAR: sàn nhảy LED, quầy bar + kệ rượu + ghế cao, neon, bàn đèn, cầu disco ---------- */
+hall.children.forEach(function (o) { /* bỏ thảm đỏ + 2 dải đèn lối giữa để sàn nhảy liền mạch */
+  if (o.material === M.carpet) o.visible = false;
+  if (o.material === M.stepLight && Math.abs(Math.abs(o.position.x) - 1.42) < 0.01 && Math.abs(o.position.z - 1.5) < 0.01) o.visible = false;
+});
+var dfCan = document.createElement('canvas'); dfCan.width = 256; dfCan.height = 128;
+var dfCtx = dfCan.getContext('2d'), dfTex = new THREE.CanvasTexture(dfCan);
+dfTex.encoding = THREE.sRGBEncoding; dfTex.magFilter = THREE.NearestFilter;
+var danceFloor = new THREE.Mesh(new THREE.PlaneGeometry(24, 12), new THREE.MeshBasicMaterial({ map: dfTex, transparent: true, opacity: 0.5, depthWrite: false }));
+danceFloor.rotation.x = -Math.PI / 2; danceFloor.position.set(0, 0.015, 3.5); hall.add(danceFloor);
+var DF_COLS = ['#ff4fd8', '#7c5cff', '#2dd4ff', '#ffd94d', '#ff6f6f', '#3dffa8'], dfBeat = -1;
+function drawDanceFloor(beat){
+  for (var r = 0; r < 4; r++) for (var c = 0; c < 8; c++) {
+    var on = (r + c + beat) % 3 === 0 || (r * 7 + c * 3 + beat * 5) % 11 === 0;
+    dfCtx.fillStyle = on ? DF_COLS[(r + c * 2 + beat) % DF_COLS.length] : '#140a22';
+    dfCtx.fillRect(c * 32 + 1, r * 32 + 1, 30, 30);
+  }
+  dfTex.needsUpdate = true;
+}
+var BAR_X = 13.2, neonPink = mat(0xff4fd8, 0.4, 0, 0xff4fd8, 2);
+box(1.3, 1.15, 12, mat(0x2a1430, 0.5, 0.2), BAR_X, 0.575, 3.5, hall, true);   /* thân quầy */
+box(1.6, 0.08, 12.3, M.gold, BAR_X, 1.19, 3.5, hall);                            /* mặt quầy */
+box(0.05, 0.05, 12, neonPink, BAR_X - 0.67, 0.3, 3.5, hall);                     /* neon chân quầy */
+var bottleGeo = new THREE.CylinderGeometry(0.09, 0.11, 0.42, 10);
+var bottleMats = [0x3dffa8, 0xff6f6f, 0xffd94d, 0x2dd4ff, 0xff4fd8, 0xc79bff].map(function (c) { return mat(c, 0.2, 0.1, c, 0.9); });
+[1.8, 2.8, 3.8].forEach(function (y, si) { /* kệ rượu phát sáng trên tường phải */
+  box(0.5, 0.06, 12, mat(0x3a2418, 0.6, 0.1), 16.45, y, 3.5, hall);
+  for (var b = 0; b < 14; b++) { var bm = new THREE.Mesh(bottleGeo, bottleMats[(b + si) % 6]); bm.position.set(16.45, y + 0.25, -2 + b * 0.8 + (si % 2) * 0.3); hall.add(bm); }
+});
+var stoolGeo = new THREE.CylinderGeometry(0.34, 0.3, 0.12, 18), stoolMat = mat(0xff4fd8, 0.5, 0.1, 0x5a0a40, 0.4);
+for (var st = 0; st < 5; st++) { /* ghế cao trước quầy */
+  var sz = -0.5 + st * 2.4;
+  box(0.08, 0.8, 0.08, M.gold, BAR_X - 1.15, 0.4, sz, hall);
+  var stTop = new THREE.Mesh(stoolGeo, stoolMat); stTop.position.set(BAR_X - 1.15, 0.86, sz); hall.add(stTop);
+}
+(function neonSign(){ /* bảng neon tường trái */
+  var c = document.createElement('canvas'); c.width = 1024; c.height = 320;
+  var x = c.getContext('2d'); x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.shadowColor = '#ff4fd8'; x.shadowBlur = 40; x.fillStyle = '#ffd1f4'; x.font = '900 150px "Be Vietnam Pro", sans-serif'; x.fillText('RẠP LIVE', 512, 130);
+  x.shadowColor = '#2dd4ff'; x.fillStyle = '#c9f6ff'; x.font = '800 90px "Be Vietnam Pro", sans-serif'; x.fillText('★ BAR ★', 512, 255);
+  var tx = new THREE.CanvasTexture(c); tx.encoding = THREE.sRGBEncoding;
+  var sign = new THREE.Mesh(new THREE.PlaneGeometry(8, 2.5), new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false }));
+  sign.rotation.y = Math.PI / 2; sign.position.set(-16.6, 6.2, 3); hall.add(sign);
+})();
+var lampMat = mat(0xffc978, 0.3, 0, 0xffa23c, 2.2), tableMat = mat(0x2a1430, 0.5, 0.2);
+[-1, 3.5, 8].forEach(function (z) { /* bàn tròn có đèn bên trái */
+  var top = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.07, 22), tableMat); top.position.set(-13.4, 0.92, z); hall.add(top);
+  box(0.1, 0.9, 0.1, M.gold, -13.4, 0.45, z, hall);
+  var lamp = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), lampMat); lamp.position.set(-13.4, 1.12, z); hall.add(lamp);
+});
+var disco = new THREE.Mesh(new THREE.IcosahedronGeometry(0.75, 1), new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: 0.15, flatShading: true, emissive: 0x333333 }));
+disco.position.set(0, 9.7, 4.5); hall.add(disco); /* treo cao, không che màn LED từ góc nhìn mặc định */
+box(0.03, 0.5, 0.03, M.trim, 0, 10.3, 4.5, hall);
+var beams = [0xff4fd8, 0x2dd4ff, 0xffd94d, 0x7c5cff].map(function (c) { /* luồng đèn màu quét từ cầu disco */
+  var geo = new THREE.ConeGeometry(1.4, 8, 20, 1, true); geo.translate(0, -4, 0);
+  var m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.11, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  m.position.copy(disco.position); hall.add(m); return m;
+});
+function barTick(t){
+  disco.rotation.y = t * 0.0008;
+  for (var i = 0; i < beams.length; i++) { beams[i].rotation.z = 0.55 * Math.sin(t * 0.0006 + i * 1.6); beams[i].rotation.x = 0.45 * Math.cos(t * 0.0005 + i * 2.2); }
+  var beat = Math.floor(t / (60000 / 78)); /* đổi màu sàn theo nhịp nhạc nền */
+  if (beat !== dfBeat) { dfBeat = beat; drawDanceFloor(beat); }
+}
 var GIFT_ACTS = [
   { icon: '🌹', name: 'Hoa hồng', keys: ['rose', 'hoa hồng'], act: 'wave', label: 'MC vẫy tay chào', line: 'Cảm ơn {n} tặng hoa hồng! MC Thỏ vẫy tay chào nè!' },
   { icon: '🎵', name: 'TikTok', keys: ['tiktok'], act: 'jump', label: 'MC nhảy cẫng lên', line: 'Yeah! {n} tặng TikTok, MC Thỏ nhảy lên nào!' },
@@ -4257,7 +4320,7 @@ function emojiTex(ch){
   if (fxTex[ch]) return fxTex[ch];
   var c = document.createElement('canvas'); c.width = c.height = 96;
   var x = c.getContext('2d'); x.font = '72px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
-  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(ch, 48, 54);
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#ffffff'; x.fillText(ch, 48, 54);
   var tx = new THREE.CanvasTexture(c); tx.encoding = THREE.sRGBEncoding;
   return (fxTex[ch] = tx);
 }
@@ -4331,6 +4394,7 @@ function npcEnd(){
   if (ledMode !== 'pair') ledOff();
 }
 function npcTick(t){
+  barTick(t);
   if (npcCur && t - npcCur.start > npcCur.dur) { npcEnd(); npcCur = null; }
   if (!npcCur && npcQ.length && !(ledMode === 'pair')) { npcCur = npcQ.shift(); npcCur.start = t; npcCur.dur = NPC_DUR[npcCur.act] || 3000; npcBegin(npcCur); }
   var k = npcCur ? (t - npcCur.start) / npcCur.dur : 0;
@@ -4387,7 +4451,7 @@ showBubble = function (rec, text) {
 };
 /* BẢNG QUÀ trên màn hình: người xem TikTok thấy tặng quà gì thì MC làm gì. Chủ phòng bấm vào dòng để diễn thử. */
 (function giftBoard(){
-  var small = window.innerWidth <= 680 || window.innerHeight <= 480;
+  var small = true; /* màn LED sau sân khấu đã hiện bảng quà — bảng này thu gọn sẵn */
   var el = document.createElement('div'); el.id = 'giftBoard';
   el.style.cssText = 'position:fixed;right:12px;top:' + (window.innerWidth <= 680 ? 150 : (window.innerHeight <= 480 ? 130 : 96)) + 'px;z-index:9;background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:7px 10px;font-size:11.5px;white-space:nowrap;box-shadow:0 8px 22px rgba(0,0,0,.4)';
   var rows = GIFT_ACTS.map(function (g, i) {
