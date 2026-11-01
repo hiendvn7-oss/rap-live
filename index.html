@@ -4911,7 +4911,11 @@ sharedJoinRoom = function (roomId) {
     if (v) myNickname = v;
     gate.parentNode.removeChild(gate);
     /* trang mở từ cầu nối trên chính máy chủ phòng (http://127.0.0.1:8787) tự làm chủ phòng — chỉ máy này mở được địa chỉ đó */
-    if (location.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && currentRole !== 'admin') { setRole('admin', true); toast('Tab chủ phòng — đang mở phòng chung + nối TikTok…'); }
+    if (location.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && currentRole !== 'admin') { setRole('admin', true); toast('Tab chủ phòng — đang mở phòng chung + nối TikTok…');
+      /* tab chủ phòng im lặng: chỉ cửa sổ camera (Edge) phát giọng + nhạc lên live, tránh vang tiếng */
+      if (voiceOn && voiceBtnEl) voiceBtnEl.click();
+      if (bgmWanted) bgmBtn.click();
+    }
     if (currentRole !== 'admin') sharedJoinRoom(sharedRoomParam || SHARED_FIXED_ROOM);
     else if (typeof Peer === 'undefined') { toast('Chưa tải được PeerJS — phòng chung cần mạng, bản xem riêng vẫn chạy bình thường.'); }
   });
