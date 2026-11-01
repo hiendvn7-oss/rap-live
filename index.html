@@ -3122,7 +3122,7 @@ function refreshVoicePool(){
   var all = [];
   try{ all = voiceSynth.getVoices() || []; }catch(e){ all = []; }
   var vi = all.filter(function(v){ return /^vi([-_]|$)/i.test(v.lang || ''); });
-  voicePool = (vi.length ? vi : all).slice().sort(function(a, b){ return voiceSoftScore(b) - voiceSoftScore(a); });
+  voicePool = vi.slice().sort( /* chỉ giọng tiếng Việt — giọng tiếng Anh đọc tiếng Việt sai gần hết chữ */function(a, b){ return voiceSoftScore(b) - voiceSoftScore(a); });
   voiceSoftPool = voicePool.filter(function(v){ return voiceSoftScore(v) >= 3; });
   if(!voiceSoftPool.length && voicePool.length) voiceSoftPool = [voicePool[0]];
 }
@@ -3140,6 +3140,42 @@ var VOICE_RATE = [0.96, 0.93, 0.98, 0.95, 0.92, 0.97, 0.94, 0.99, 0.93, 0.96, 0.
 var VOICE_VOLUME = 1.0; /* nhạc nền đã tự nhỏ lại khi có người nói, giọng để to cho rõ */
 /* giọng tự nhiên (Edge: HoaiMy / NamMinh) giữ nguyên cao độ + tốc độ chuẩn — chỉnh pitch làm giọng tự nhiên bị méo */
 function voiceIsNatural(v){ var n = String(v && v.name || '').toLowerCase(); return n.indexOf('natural') >= 0 || n.indexOf('online') >= 0 || n.indexOf('neural') >= 0; }
+/* LÀM SẠCH CÂU TRƯỚC KHI ĐỌC: bỏ emoji / ký hiệu / link, đổi từ tiếng Anh hay gặp sang cách đọc tiếng Việt */
+/* ranh giới từ hiểu chữ có dấu (\b của JS coi ê, ơ… là ranh giới nên "kênh" từng bị đọc thành "không ênh") */
+var VOICE_EDGE_L = String.raw`(?<![\p{L}\p{N}])`, VOICE_EDGE_R = String.raw`(?![\p{L}\p{N}])`;
+function voiceWord(w, r){ return [new RegExp(VOICE_EDGE_L + '(?:' + w + ')' + VOICE_EDGE_R, 'giu'), r]; }
+var VOICE_WORDS = [
+  [String.raw`MC`, 'em xi'], [String.raw`LED`, 'lét'], [String.raw`tik\s*tok`, 'tíc tốc'], [String.raw`follow`, 'phô lâu'],
+  [String.raw`live`, 'lai'], [String.raw`highlight`, 'hai lai'], [String.raw`bartender`, 'ba ten đơ'], [String.raw`bar`, 'ba'],
+  [String.raw`ok(?:e|ay|ela)?`, 'ô kê'], [String.raw`hello`, 'hê lô'], [String.raw`helo+`, 'hê lô'], [String.raw`hi`, 'hai'],
+  [String.raw`welcome`, 'quen câm'], [String.raw`dancers?`, 'đan xơ'], [String.raw`share`, 'se'], [String.raw`wow`, 'quao'],
+  [String.raw`yeah`, 'dê'], [String.raw`vibe`, 'vai'], [String.raw`disco`, 'đít cô'], [String.raw`crush`, 'cờ rát'],
+  [String.raw`idol`, 'ai đồ'], [String.raw`fan`, 'phan'], [String.raw`like`, 'lai'], [String.raw`x\s*(\d+)`, '$1 lần'],
+  [String.raw`vl`, ''], [String.raw`ko`, 'không'], [String.raw`k`, 'không'], [String.raw`dc`, 'được'], [String.raw`đc`, 'được'],
+  [String.raw`mn`, 'mọi người'], [String.raw`mng`, 'mọi người'], [String.raw`ad`, 'át min'], [String.raw`ib`, 'i bê']
+].map(function (p) { return voiceWord(p[0], p[1]); });
+function voiceClean(s){
+  s = String(s || '').replace(/https?:\/\/\S+/g, ' ');
+  for (var i = 0; i < VOICE_WORDS.length; i++) s = s.replace(VOICE_WORDS[i][0], VOICE_WORDS[i][1]);
+  s = s.replace(/[^\p{L}\p{N}\s.,!?…:-]/gu, ' ');      /* emoji, ký hiệu, ngoặc, @ # … */
+  s = s.replace(/(\p{L})\1{2,}/gu, '$1$1');              /* "đỉnhhhh" → "đỉnhh" */
+  return s.replace(/([!?.,…])\1+/g, '$1').replace(/\s+/g, ' ').trim();
+}
+/* mọi câu đọc đều qua đây: làm sạch chữ + chỉ đọc bằng giọng tiếng Việt (không có thì im, báo 1 lần) */
+var voiceWarned = false;
+if (voiceSynth && voiceSynth.speak) {
+  var voiceSpeakRaw = voiceSynth.speak.bind(voiceSynth);
+  voiceSynth.speak = function (u) {
+    if (!voicePool.length) {
+      if (!voiceWarned) { voiceWarned = true; toast('Máy này chưa có giọng đọc tiếng Việt — mở bằng Microsoft Edge để có giọng HoaiMy / NamMinh'); }
+      return;
+    }
+    u.text = voiceClean(u.text); if (!u.text) return;
+    if (!u.voice || !/^vi/i.test(u.voice.lang || '')) u.voice = voiceMC();
+    u.lang = 'vi-VN';
+    voiceSpeakRaw(u);
+  };
+}
 function voiceMC(){ for (var i = 0; i < voicePool.length; i++) { var n = String(voicePool[i].name).toLowerCase(); if (n.indexOf('hoai') >= 0 || n.indexOf('hoài') >= 0) return voicePool[i]; } return voicePool[0]; }
 function speakAs(rec, text){
   if(!voiceOn || !voiceSynth || !text) return;
