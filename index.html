@@ -4241,6 +4241,26 @@ function ttPairCmd(type, ev, rec){
     : type === 'argue' ? ev.name + ' với ' + partner.name + ' cãi nhau rồi kìa! Camera quay liền!'
     : ev.name + ' đang tám chuyện với ' + partner.name + ', cả bar cùng xem nào!');
 }
+/* TỰ ĐỘNG HIGHLIGHT ~45 giây/lần (người xem TikTok không thao tác được): ưu tiên người xem TikTok thật — tự ghép họ
+   với người bên cạnh rồi quay lên màn LED; chưa có ai thì ghép 2 bot đứng cạnh nhau cho sàn luôn có chuyện. */
+var ttAutoHlNext = Date.now() + 25000;
+setInterval(function () {
+  var now = Date.now();
+  if (!sharedIsHost || hlState.filming || now < ttAutoHlNext || now < ttPairNext || (typeof npcCur !== 'undefined' && npcCur)) return;
+  ttAutoHlNext = now + 45000;
+  var r = Math.random(), type = r < 0.5 ? 'couple' : r < 0.8 ? 'talk' : 'argue';
+  var tts = Object.keys(sharedPeers).filter(function (k) { return k.indexOf('tt:') === 0 && sharedSeatById(sharedPeers[k].seatId); });
+  if (tts.length) {
+    var pid = ttPick(tts), p = sharedPeers[pid];
+    ttPairCmd(type, { id: pid.slice(3), name: p.name }, sharedSeatById(p.seatId));
+    return;
+  }
+  var pairs = adjacentPairs(); if (!pairs.length) return;
+  var pr = ttPick(pairs), ch = hlState.chances;
+  startHighlightFilm(type, pr[0], pr[1]);
+  hlState.chances = ch;
+  ttPairNext = now + 20000;
+}, 5000);
 function ttHandle(ev){
   if (!ev || !ev.type) return;
   if (ev.type === 'status') { ttSetStatus(ev.text); return; }
@@ -4742,6 +4762,8 @@ sharedJoinRoom = function (roomId) {
     var v = inp ? inp.value.trim() : '';
     if (v) myNickname = v;
     gate.parentNode.removeChild(gate);
+    /* trang mở từ cầu nối trên chính máy chủ phòng (http://127.0.0.1:8787) tự làm chủ phòng — chỉ máy này mở được địa chỉ đó */
+    if (location.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && currentRole !== 'admin') { setRole('admin', true); toast('Tab chủ phòng — đang mở phòng chung + nối TikTok…'); }
     if (currentRole !== 'admin') sharedJoinRoom(sharedRoomParam || SHARED_FIXED_ROOM);
     else if (typeof Peer === 'undefined') { toast('Chưa tải được PeerJS — phòng chung cần mạng, bản xem riêng vẫn chạy bình thường.'); }
   });
