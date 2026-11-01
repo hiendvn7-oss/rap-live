@@ -580,6 +580,10 @@
       <button class="kickbtn" id="kickBtn" type="button">Kick</button>
     </div>
   </div>
+  <div class="remindpanel" id="roomLinkPanel">
+    <p class="remind-title">Link phòng chung <span>— mặc định ẩn để không lộ link trên live</span></p>
+    <button class="remindbtn" id="roomLinkToggle" type="button">Hiện link phòng</button>
+  </div>
   <div class="remindpanel" id="remindPanel">
     <p class="remind-title">Nhắc khán giả giữ trật tự</p>
     <button class="remindbtn" id="remindBtn" type="button">
@@ -3836,8 +3840,8 @@ function sharedStartHost(){
     sharedPeer.on('open', function (id) {
       sharedIsHost = true; sharedActive = true; sharedMyId = id; sharedRoomId = id; sharedGuestOff = true;
       sharedPeers[id] = { name: myNickname, seatId: seats[mySeatIndex].id, seatIndex: mySeatIndex };
-      sharedShowRoom('Phòng chung đã mở — khán giả chỉ cần mở: ' + window.location.href.split('?')[0].split('#')[0], true);
-      toast('Đã mở phòng chung. Gửi link phòng cho khán giả.');
+      /* không tự hiện link trên màn hình (tránh lộ link khi live) — mở bằng mục "Link phòng chung" trong bảng Admin */
+      toast('Đã mở phòng chung — bấm "Hiện link phòng" trong bảng Admin khi cần lấy link.');
     });
     sharedPeer.on('connection', function (conn) {
       conn.on('open', function () { sharedConns[conn.peer] = conn; });
@@ -3906,6 +3910,7 @@ setRole = function (role, silent) {
     /* đang ngồi như khán giả (chờ phòng) thì bỏ kết nối đó để lên làm chủ phòng */
     sharedActive = false; sharedJoined = false;
     if (sharedPeer) { try { sharedPeer.destroy(); } catch (e) {} sharedPeer = null; }
+    var oldBox = document.getElementById('sharedRoomBox'); if (oldBox) oldBox.style.display = 'none';
     sharedStartHost();
   }
   return r;
@@ -3979,6 +3984,16 @@ if (pairShowBtnEl2) pairShowBtnEl2.addEventListener('click', function () {
   if (sharedActive && sharedIsHost && typeof showingPairs !== 'undefined' && showingPairs) {
     sharedBroadcast({ type: 'pair-show', pairs: pairState.list.slice() });
   }
+});
+var roomLinkToggleEl = document.getElementById('roomLinkToggle');
+if (roomLinkToggleEl) roomLinkToggleEl.addEventListener('click', function () {
+  var box = document.getElementById('sharedRoomBox');
+  if (box && box.style.display === 'block' && sharedIsHost) {
+    box.style.display = 'none'; roomLinkToggleEl.textContent = 'Hiện link phòng'; return;
+  }
+  if (!sharedIsHost) { toast('Phòng chung chưa mở — đợi vài giây sau khi mở khóa chủ phòng.'); return; }
+  sharedShowRoom('Khán giả chỉ cần mở: ' + window.location.href.split('?')[0].split('#')[0], true);
+  roomLinkToggleEl.textContent = 'Ẩn link phòng';
 });
 /* Chia sẻ màn hình qua phòng chung: chủ phòng gọi media PeerJS tới từng khán giả, khán giả gắn luồng đó lên màn rạp. */
 var sharedCalls = {}, sharedViewerStream = null;
