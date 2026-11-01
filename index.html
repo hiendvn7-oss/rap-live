@@ -955,7 +955,7 @@ function drawDemoScreen(t){
     x.fillText('→ ' + list[k].label, cx + tx, cy + 72, cw - tx - 8);
   }
   x.textAlign='center'; x.fillStyle='rgba(255,255,255,0.85)'; x.font='600 22px "Be Vietnam Pro", sans-serif';
-  x.fillText('💬 Gõ "ghép đôi" • "cãi nhau" • "trò chuyện" để lên màn LED  •  "ghế C3" để đổi chỗ', w/2, h - 14);
+  x.fillText('💬 Gõ "lên nhảy" để lên sân khấu  •  "ghép đôi" • "cãi nhau" • "trò chuyện" để lên màn LED', w/2, h - 14);
   if(Math.floor(t/620)%2===0 || reduced){ /* LIVE badge */
     x.fillStyle='#e63950'; roundRect(x, 18, 14, 96, 34, 17); x.fill();
     x.fillStyle='#fff'; x.font='800 19px "Be Vietnam Pro", sans-serif'; x.fillText('● LIVE', 66, 38);
@@ -1841,7 +1841,7 @@ function spawnFace(rec, expr, durMs){
 function adjacentPairs(){
   var out = [];
   seats.forEach(function(rec){
-    if(!rec.occupied || !rec.avatar) return;
+    if(!rec.occupied || !rec.avatar || rec.onStage) return;
     if(rec.index % COLS === COLS - 1 || rec.index % COLS === 3) return; /* ghế cuối hàng / ghế sát lối đi giữa */
     var nb = seats[rec.index + 1];
     if(nb && nb.occupied && nb.avatar && Math.floor(nb.index / COLS) === Math.floor(rec.index / COLS)) out.push([rec, nb]);
@@ -2036,7 +2036,7 @@ function updateHlEffects(t){
     else if(rec.avatar){ rec.avatar.position.x=rec.x; }
     if(rec.avatar&&rec.hlPartner&&rec.hlUntil&&t<rec.hlUntil){
       var dx=rec.hlPartner.x-rec.x; rec.avatar.rotation.y = dx>0.4? -0.28 : (dx<-0.4? 0.28 : 0);
-    } else if(rec.avatar){ rec.avatar.rotation.y=0; }
+    } else if(rec.avatar){ rec.avatar.rotation.y = rec.onStage ? Math.PI : 0; } /* đang trên sân khấu thì quay mặt ra khán giả */
   });
 }
 document.querySelectorAll('[data-hl]').forEach(function(btn){
@@ -4206,13 +4206,15 @@ setInterval(function () {
 var ttBotGreetQ = [], ttAutoN = 0, ttPairNext = 0;
 var BOT_HYPE = ['Quẩy lên cả nhà ơi!', 'Ai chưa follow thì follow kênh đi nè!', 'Tặng hoa cho MC vẫy tay đi mọi người!',
   'Bình luận "ghép đôi" là được ghép cặp đó nha!', 'Nhạc chill quá trời luôn!', 'MC Thỏ lắc hông dẻo ghê!',
-  'Thả tim cho live đi cả nhà!', 'Ai muốn cãi nhau với mình thì gõ "cãi nhau" nè!', 'Tối nay bar đông vui thật sự!'];
+  'Thả tim cho live đi cả nhà!', 'Ai muốn cãi nhau với mình thì gõ "cãi nhau" nè!', 'Tối nay bar đông vui thật sự!',
+  'Gõ "lên nhảy" là được lên sân khấu nhảy với MC đó!', 'Ai lên sân khấu nhảy với MC đi kìa!'];
 var MC_CALLS = ['Ai chưa follow thì bấm follow để tối nào cũng gặp MC Thỏ nha!',
   'Bình luận "ghép đôi" để MC ghép cặp cho bạn với người bên cạnh nè!',
   'Tặng một bông hồng là MC Thỏ vẫy tay chào bạn liền!',
   'Gõ "cãi nhau" hoặc "trò chuyện" để được lên màn LED nào!',
   'Thả tim thật nhiều cho bar Rạp Live nóng lên nào cả nhà!',
-  'Quà từ 500 xu là cả dàn dancer lên sân khấu nha!'];
+  'Quà từ 500 xu là cả dàn dancer lên sân khấu nha!',
+  'Bình luận "lên nhảy" để lên sân khấu nhảy cùng MC Thỏ nào!'];
 function ttPick(a){ return a[Math.floor(Math.random() * a.length)]; }
 /* mỗi 10 giây một câu: bot chào tên người mới vào, không có ai mới thì bot hô hào; cứ 3 lượt thì MC kêu gọi */
 setInterval(function () {
@@ -4282,6 +4284,43 @@ setInterval(function () {
   ttChat('MC Thỏ', null, item.line, false);
   npcPlay(item); sharedBroadcast(item);
 }, 3000);
+/* LÊN SÂN KHẤU NHẢY: nhân vật người xem bước lên sân khấu cạnh MC (to hơn, quay mặt ra khán giả), nhảy ~9 giây rồi về chỗ.
+   Dời tạm rec.x / y / z để vòng nhảy chung (animate), bong bóng chat và bảng tên đi theo; hết giờ trả về chỗ cũ. */
+var stageQ = [], stageBusyUntil = 0, stageSide = 1;
+function stageVisit(rec, dur, side){
+  if (!rec || !rec.avatar || rec.onStage) return;
+  var av = rec.avatar, home = { x: rec.x, y: rec.y, z: rec.z };
+  rec.onStage = true;
+  rec.x = side * 2.6; rec.y = STAGE_Y; rec.z = STAGE_Z + 1.5;
+  av.position.set(rec.x, rec.y + 0.46, rec.z); av.rotation.y = Math.PI; av.scale.setScalar(1.45);
+  if (rec.sprite) rec.sprite.position.set(rec.x, rec.y + 2.6, rec.z);
+  try { showBubble(rec, ttPick(['Lên sân khấu nè!', 'Nhảy cùng MC nào!', 'Quẩy thôi cả nhà!'])); } catch (e) {}
+  fxBurst(['✨', '🎶', '💃'], 10, rec.x, STAGE_Y + 2, rec.z, 1.5);
+  setTimeout(function () {
+    rec.onStage = false;
+    rec.x = home.x; rec.y = home.y; rec.z = home.z;
+    if (rec.avatar !== av) return; /* đã bị kick / nhường chỗ trong lúc nhảy */
+    av.position.set(rec.x, rec.y + 0.46, rec.z + 0.02); av.rotation.y = 0; av.scale.setScalar(1);
+    if (rec.sprite) rec.sprite.position.set(rec.x, rec.y + 1.92, rec.z);
+  }, dur);
+}
+function stageRequest(ev, rec){
+  if (!rec) return;
+  if (stageQ.some(function (q) { return q.rec === rec; })) return;
+  if (stageQ.length < 3) stageQ.push({ ev: ev, rec: rec });
+}
+setInterval(function () {
+  if (!sharedIsHost || Date.now() < stageBusyUntil || !stageQ.length || hlState.filming) return;
+  var q = stageQ.shift(); if (!q.rec.avatar) return;
+  stageBusyUntil = Date.now() + 10000; stageSide = -stageSide;
+  stageVisit(q.rec, 9000, stageSide);
+  sharedBroadcast({ type: 'stage-visit', seatId: q.rec.id, dur: 9000, side: stageSide });
+  var line = ttPick(['Mời ' + q.ev.name + ' lên sân khấu nhảy cùng MC Thỏ nào!', q.ev.name + ' lên sân khấu rồi! Cả bar cổ vũ đi nào!', 'Ê ' + q.ev.name + ' nhảy đỉnh quá! Quẩy cùng MC nè!']);
+  ttChat('MC Thỏ', null, line, false);
+  var item = { type: 'npc', act: 'dance', line: line, icon: '💃' };
+  npcQ.unshift({ act: item.act, line: item.line, icon: item.icon }); sharedBroadcast(item); /* MC nhảy cùng ngay, chen lên đầu hàng */
+  ledOn('stage');
+}, 1000);
 function ttHandle(ev){
   if (!ev || !ev.type) return;
   if (ev.type === 'status') { ttSetStatus(ev.text); return; }
@@ -4300,6 +4339,7 @@ function ttHandle(ev){
     var low = String(ev.text || '').toLowerCase();
     var cmd = /gh[ée]p\s*[đd][ôo]i/.test(low) ? 'couple' : /c[ãa]i\s*nhau/.test(low) ? 'argue' : /(tr[òo]\s*chuy[ệe]n|t[áa]m\s*chuy[ệe]n)/.test(low) ? 'talk' : null;
     if (cmd && rec) setTimeout(function () { ttPairCmd(cmd, ev, rec); }, 700);
+    if (rec && /(l[êe]n)\s*(s[âa]n\s*kh[ấa]u|nh[ảa]y)|mu[ốo]n\s*nh[ảa]y|nh[ảa]y\s*(v[ớo]i|c[ùu]ng)\s*mc/.test(low)) stageRequest(ev, rec);
     return;
   }
   if (ev.type === 'gift') {
@@ -4739,6 +4779,7 @@ sharedHandleViewerMsg = function (msg) {
   if (msg && msg.type === 'share-stop') { sharedEndRemoteShare(msg.restore); return; }
   if (msg && msg.type === 'clear-bots') { ttClearBots(); return; }
   if (msg && msg.type === 'npc') { npcPlay(msg); return; }
+  if (msg && msg.type === 'stage-visit') { stageVisit(sharedSeatById(msg.seatId), msg.dur || 9000, msg.side || 1); return; }
   return sharedHandleViewerMsgOrig(msg);
 };
 var sharedJoinRoomOrig = sharedJoinRoom;
