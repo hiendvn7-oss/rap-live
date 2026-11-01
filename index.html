@@ -743,7 +743,9 @@ scene.background = new THREE.Color(0x07080f);
 scene.fog = new THREE.Fog(0x07080f, 60, 130); /* fog xa hẳn: không bao giờ làm tối phòng khi xoay camera */
 
 var camera = new THREE.PerspectiveCamera(72, 1, 0.1, 140);
-camera.position.set(0, 8.4, 14.2);
+/* góc máy mặc định giữa đám đông nhìn thẳng sân khấu; màn hình dọc lùi xa hơn để thấy đủ 2 cột bảng quà trên màn LED */
+var CAM_HOME_Z = window.innerWidth < window.innerHeight ? 7.5 : 4.5;
+camera.position.set(0, 4.6, CAM_HOME_Z);
 
 /* Software renderers (audit / low-end) get a light mode: no shadows, 1x pixels. */
 var softwareGL = false;
@@ -889,7 +891,7 @@ box(0.22, SCREEN_H+1.45, 0.2, M.trim, -SCREEN_W/2 - 0.62, SCREEN_Y, SCREEN_Z-0.1
 box(0.22, SCREEN_H+1.45, 0.2, M.trim, SCREEN_W/2 + 0.62, SCREEN_Y, SCREEN_Z-0.15, hall);
 var screenGlowMat = null; /* giữ tham chiếu vật liệu hào quang quanh màn chiếu để màn ăn mừng Highlight làm màn hình sáng bừng lên rồi trả về mờ như cũ */
 (function(){
-  var glowMat = new THREE.MeshBasicMaterial({color:0x86b8ff, transparent:true, opacity:0.10, depthWrite:false, side:THREE.DoubleSide});
+  var glowMat = new THREE.MeshBasicMaterial({color:0xff5ac8, transparent:true, opacity:0.22, depthWrite:false, side:THREE.DoubleSide});
   screenGlowMat = glowMat;
   var glow = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W+4.5, SCREEN_H+3.4), glowMat);
   glow.position.set(0, SCREEN_Y, SCREEN_Z+0.35); glow.renderOrder = 4; hall.add(glow);
@@ -931,23 +933,25 @@ function drawDemoScreen(t){
   x.textAlign='center'; x.textBaseline='alphabetic';
   x.shadowColor='#ff5ac8'; x.shadowBlur=18;
   x.fillStyle='#ffffff'; x.font='900 44px "Be Vietnam Pro", sans-serif';
-  x.fillText('🎁 TẶNG QUÀ — MC THỎ LÀM THEO', w/2, 62);
+  x.fillText(window.innerWidth < window.innerHeight ? '🎁 TẶNG QUÀ' : '🎁 TẶNG QUÀ — MC THỎ LÀM THEO', w/2, 62);
   x.shadowBlur=0;
   var list = (typeof GIFT_ACTS !== 'undefined') ? GIFT_ACTS : [];
   var hot = Math.floor(t/1600) % Math.max(1, list.length);
+  var narrow = window.innerWidth < window.innerHeight; /* điện thoại dọc chỉ thấy giữa màn LED: 2 cột hẹp, chừa giữa cho MC */
   for(var k=0;k<list.length;k++){
-    var col = k % 2, row = Math.floor(k / 2), cx = 34 + col*489, cy = 88 + row*100, cw = 467, ch = 88;
+    var col = k % 2, row = Math.floor(k / 2), cx = narrow ? 214 + col*370 : 34 + col*489, cy = 88 + row*100, cw = narrow ? 226 : 467, ch = 88;
     var on = k === hot;
     x.fillStyle = on ? 'rgba(245,197,66,0.30)' : 'rgba(255,255,255,0.08)';
     roundRect(x, cx, cy, cw, ch, 18); x.fill();
     x.strokeStyle = on ? '#f5c542' : 'rgba(255,255,255,0.22)'; x.lineWidth = on ? 4 : 2;
     roundRect(x, cx, cy, cw, ch, 18); x.stroke();
-    x.fillStyle='#ffffff'; x.textAlign='center'; x.font='54px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
-    x.fillText(list[k].icon, cx + 50, cy + 64);
-    x.textAlign='left'; x.fillStyle='#ffffff'; x.font='800 30px "Be Vietnam Pro", sans-serif';
-    x.fillText(list[k].name, cx + 96, cy + 38);
-    x.fillStyle = on ? '#ffe9a3' : '#ffdf7e'; x.font='600 25px "Be Vietnam Pro", sans-serif';
-    x.fillText('→ ' + list[k].label, cx + 96, cy + 72);
+    var ix = narrow ? 30 : 50, tx = narrow ? 58 : 96;
+    x.fillStyle='#ffffff'; x.textAlign='center'; x.font=(narrow ? 38 : 54) + 'px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+    x.fillText(list[k].icon, cx + ix, cy + (narrow ? 58 : 64));
+    x.textAlign='left'; x.fillStyle='#ffffff'; x.font='800 ' + (narrow ? 24 : 30) + 'px "Be Vietnam Pro", sans-serif';
+    x.fillText(list[k].name, cx + tx, cy + 38, cw - tx - 8);
+    x.fillStyle = on ? '#ffe9a3' : '#ffdf7e'; x.font='600 ' + (narrow ? 19 : 25) + 'px "Be Vietnam Pro", sans-serif';
+    x.fillText('→ ' + list[k].label, cx + tx, cy + 72, cw - tx - 8);
   }
   x.textAlign='center'; x.fillStyle='rgba(255,255,255,0.85)'; x.font='600 22px "Be Vietnam Pro", sans-serif';
   x.fillText('💬 Bình luận để lên sàn nhảy  •  Gõ "ghế C3" để đổi chỗ', w/2, h - 14);
@@ -1532,7 +1536,7 @@ for(var r=0; r<ROWS.length; r++){
     seat.group.position.set(sx, 0, tierZ);
     seat.group.traverse(function(o){ if(o.isMesh && o !== seat.hit) o.visible = false; }); /* ẩn ghế, giữ khối bấm chọn chỗ */
     hall.add(seat.group);
-    var spotRing = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 28), new THREE.MeshBasicMaterial({color: 0x7ee0ff, transparent: true, opacity: 0.22, depthWrite: false}));
+    var spotRing = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 28), new THREE.MeshBasicMaterial({color: 0x7ee0ff, transparent: true, opacity: 0.06, depthWrite: false}));
     spotRing.rotation.x = -Math.PI / 2; spotRing.position.set(sx, 0.03, tierZ); hall.add(spotRing);
     var rec = {id: ROWS[r] + (cIdx+1), index: idx, group: seat.group, cushionMat: seat.cushionMat, backMat: seat.backMat, ring: spotRing,
                occupied:false, isMine:false, name:null, avatar:null, sprite:null, x:sx, y:0, z:tierZ};
@@ -1541,7 +1545,7 @@ for(var r=0; r<ROWS.length; r++){
 }
 function paintSeat(rec){
   var col = rec.isMine ? 0xd99a17 : (rec.occupied ? 0x8f2436 : 0x39415f);
-  if(rec.ring){ rec.ring.material.color.setHex(rec.isMine ? 0xf5c542 : (rec.occupied ? 0xff7ab6 : 0x7ee0ff)); rec.ring.material.opacity = rec.isMine ? 0.75 : (rec.occupied ? 0.35 : 0.22); }
+  if(rec.ring){ rec.ring.material.color.setHex(rec.isMine ? 0xf5c542 : (rec.occupied ? 0xff7ab6 : 0x7ee0ff)); rec.ring.material.opacity = rec.isMine ? 0.6 : (rec.occupied ? 0.16 : 0.06); }
   rec.cushionMat.color.setHex(col); rec.backMat.color.setHex(col);
   if(rec.isMine){ rec.cushionMat.emissive = new THREE.Color(0x6b4a05); rec.backMat.emissive = new THREE.Color(0x6b4a05); }
   else { rec.cushionMat.emissive = new THREE.Color(0x000000); rec.backMat.emissive = new THREE.Color(0x000000); }
@@ -2040,7 +2044,7 @@ document.querySelectorAll('[data-hl]').forEach(function(btn){
 refreshHlBar();
 
 /* ---------- free-orbit controls (hand-rolled: drag to orbit, wheel / pinch to zoom) ---------- */
-var lookTarget = new THREE.Vector3(0, 2.7, -4.5);
+var lookTarget = new THREE.Vector3(0, 4.2, -9.5); /* nhìn thẳng sân khấu: màn LED + MC là tâm khung hình */
 /* Orbit: KHÔNG còn giới hạn góc xoay nào nữa. Trước đây phi bị kẹp ở 1.52 rad (~87°,
    gần như đúng đường ngang ở giữa) nên camera đang xoay dọc thì dừng lại ngay ở giữa,
    và theta cũng từng bị hiểu là có điểm dừng giữa vòng. Giờ CẢ theta (xoay ngang)
@@ -2049,7 +2053,7 @@ var lookTarget = new THREE.Vector3(0, 2.7, -4.5);
    Chỉ còn kẹp bán kính zoom và kẹp vị trí camera trong hộp phòng (trong applyFreeOrbit)
    để camera không xuyên tường ra khoảng đen — đó là kẹp vị trí, không phải kẹp góc xoay. */
 var ORBIT = {rMin: 1.2, rMax: 20};
-var freeOrbit = {theta: 0, phi: 1.275, radius: 19.55}; /* khớp vị trí camera thứ ba mở đầu (0, 8.4, 14.2) nhìn về (0, 2.7, -4.5) */
+var freeOrbit = {theta: 0, phi: 1.542, radius: Math.hypot(0.4, CAM_HOME_Z + 9.5)}; /* khớp vị trí camera thứ ba mở đầu (0, 8.4, 14.2) nhìn về (0, 2.7, -4.5) */
 function clampOrbit(){
   freeOrbit.radius = Math.max(ORBIT.rMin, Math.min(ORBIT.rMax, freeOrbit.radius));
   /* theta và phi cố ý KHÔNG kẹp, KHÔNG chuẩn hoá về [-π, π] hay [0, π]:
@@ -2340,8 +2344,8 @@ function setCamMode(mode){
     if(wasFirst){
       /* vừa rời đầu nhân vật: đặt camera về vị trí thứ ba rộng rãi nhìn toàn rạp,
          nhân vật của bạn hiện lại và đứng yên ở ghế của mình */
-      lookTarget.set(0, 2.7, -4.5);
-      camera.position.set(0, 8.4, 14.2);
+      lookTarget.set(0, 4.2, -9.5);
+      camera.position.set(0, 4.6, CAM_HOME_Z);
     }
     syncFreeOrbit();
     if(wasFirst) toast('Góc nhìn thứ ba — kéo hoặc joystick / WASD để camera tự đi quanh rạp');
@@ -2366,8 +2370,8 @@ updateCamToggle();
   document.getElementById('zoomResetBtn').addEventListener('click', function(){
     zoomFov = null; applyFov();
     if(camMode === 'third'){
-      lookTarget.set(0, 2.7, -4.5);
-      camera.position.set(0, 8.4, 14.2);
+      lookTarget.set(0, 4.2, -9.5);
+      camera.position.set(0, 4.6, CAM_HOME_Z);
       syncFreeOrbit();
     } else { enterFirstPerson(); }
     toast('Đã đặt lại góc nhìn');
@@ -3471,7 +3475,7 @@ function stopCeleb(silent){
   celeb.beams.forEach(function(beam){ beam.visible = false; });
   if(celeb.hallLight) celeb.hallLight.intensity = 0;
   /* trả màn chiếu về đúng độ sáng gốc: hào quang 0.10, mặt màn hình trắng chuẩn, đèn màn hình gốc do vòng lặp tự đặt mỗi khung hình */
-  if(screenGlowMat) screenGlowMat.opacity = 0.10;
+  if(screenGlowMat) screenGlowMat.opacity = 0.22;
   if(typeof screenMat !== 'undefined' && screenMat) screenMat.color.setRGB(1, 1, 1);
   celebMusicStop();
 }
@@ -3508,7 +3512,7 @@ function updateCeleb(t){
   }
   /* màn chiếu bừng sáng: hào quang đậm lên theo nhịp + mặt màn hình sáng hơn hẳn */
   var boost = (1.22 + 0.33 * pulse) * fade + (1 - fade);
-  if(screenGlowMat) screenGlowMat.opacity = 0.10 + 0.38 * pulse * fade;
+  if(screenGlowMat) screenGlowMat.opacity = 0.22 + 0.38 * pulse * fade;
   if(typeof screenMat !== 'undefined' && screenMat) screenMat.color.setRGB(boost, boost, boost);
 }
 
@@ -4211,10 +4215,21 @@ box(23, STAGE_Y, 4.2, mat(0x1b1233, 0.6, 0.15), 0, STAGE_Y / 2, STAGE_Z, hall, t
 box(23.2, 0.07, 0.12, M.gold, 0, STAGE_Y + 0.02, STAGE_Z + 2.1, hall);
 box(23.2, 0.05, 0.05, M.stepLight, 0, STAGE_Y * 0.5, STAGE_Z + 2.13, hall);
 var npc = makeChibi(0xf5c542, 0xe63950, 'grin');
-npc.userData.base = 2.1; npc.scale.setScalar(2.1); npc.rotation.y = Math.PI;
-npc.position.set(0, STAGE_Y, STAGE_Z + 1.0); hall.add(npc);
+npc.userData.base = 2.6; npc.scale.setScalar(2.6); npc.rotation.y = Math.PI;
+npc.position.set(0, STAGE_Y, STAGE_Z + 1.3); hall.add(npc);
+/* SPOTLIGHT: đèn thật chiếu MC + cột sáng + vầng sáng dưới chân — điểm nhìn chính của khung hình */
+var mcSpot = new THREE.SpotLight(0xffe2a0, 2.4, 18, 0.32, 0.55);
+mcSpot.position.set(0, 9.8, STAGE_Z + 5); mcSpot.target = npc; hall.add(mcSpot);
+var spotGeo = new THREE.ConeGeometry(1.5, 9.1, 24, 1, true); spotGeo.translate(0, -4.55, 0);
+var mcBeam = new THREE.Mesh(spotGeo, new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+mcBeam.position.set(0, 9.8, STAGE_Z + 1.3); hall.add(mcBeam);
+var mcHalo = new THREE.Mesh(new THREE.CircleGeometry(1.5, 36), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
+mcHalo.rotation.x = -Math.PI / 2; mcHalo.position.set(0, STAGE_Y + 0.02, STAGE_Z + 1.3); hall.add(mcHalo);
+[[-1, 0xff5ac8], [1, 0x2dd4ff]].forEach(function (n) { /* 2 cột neon dọc hai bên màn LED */
+  box(0.12, SCREEN_H + 1.4, 0.12, mat(n[1], 0.3, 0, n[1], 2.4), n[0] * (SCREEN_W / 2 + 1.1), SCREEN_Y, SCREEN_Z + 0.1, hall);
+});
 var npcTag = makeNameSprite('🎤 MC Thỏ', true);
-npcTag.scale.set(2.0, 0.52, 1); npcTag.position.set(0, STAGE_Y + 3.55, STAGE_Z + 1.0); hall.add(npcTag);
+npcTag.scale.set(2.2, 0.57, 1); npcTag.position.set(0, STAGE_Y + 4.25, STAGE_Z + 1.3); hall.add(npcTag);
 var dancers = [[-5.6, 0x5edcff, 0x2b6cff], [-2.9, 0xff7ab6, 0xc2185b], [2.9, 0x9cff8a, 0x2e9e44], [5.6, 0xc79bff, 0x6a3fd0]].map(function (d, i) {
   var c = makeChibi(d[1], d[2], MEME_EXPRS[(i + 1) % MEME_EXPRS.length].id);
   c.userData.base = 1.7; c.scale.setScalar(1.7); c.rotation.y = Math.PI;
@@ -4229,12 +4244,12 @@ hall.children.forEach(function (o) { /* bỏ thảm đỏ + 2 dải đèn lối 
 var dfCan = document.createElement('canvas'); dfCan.width = 256; dfCan.height = 128;
 var dfCtx = dfCan.getContext('2d'), dfTex = new THREE.CanvasTexture(dfCan);
 dfTex.encoding = THREE.sRGBEncoding; dfTex.magFilter = THREE.NearestFilter;
-var danceFloor = new THREE.Mesh(new THREE.PlaneGeometry(24, 12), new THREE.MeshBasicMaterial({ map: dfTex, transparent: true, opacity: 0.5, depthWrite: false }));
+var danceFloor = new THREE.Mesh(new THREE.PlaneGeometry(24, 12), new THREE.MeshBasicMaterial({ map: dfTex, transparent: true, opacity: 0.16, depthWrite: false }));
 danceFloor.rotation.x = -Math.PI / 2; danceFloor.position.set(0, 0.015, 3.5); hall.add(danceFloor);
 var DF_COLS = ['#ff4fd8', '#7c5cff', '#2dd4ff', '#ffd94d', '#ff6f6f', '#3dffa8'], dfBeat = -1;
 function drawDanceFloor(beat){
   for (var r = 0; r < 4; r++) for (var c = 0; c < 8; c++) {
-    var on = (r + c + beat) % 3 === 0 || (r * 7 + c * 3 + beat * 5) % 11 === 0;
+    var on = (r * 7 + c * 3 + beat * 5) % 9 === 0;
     dfCtx.fillStyle = on ? DF_COLS[(r + c * 2 + beat) % DF_COLS.length] : '#140a22';
     dfCtx.fillRect(c * 32 + 1, r * 32 + 1, 30, 30);
   }
@@ -4276,13 +4291,14 @@ disco.position.set(0, 9.7, 4.5); hall.add(disco); /* treo cao, không che màn L
 box(0.03, 0.5, 0.03, M.trim, 0, 10.3, 4.5, hall);
 var beams = [0xff4fd8, 0x2dd4ff, 0xffd94d, 0x7c5cff].map(function (c) { /* luồng đèn màu quét từ cầu disco */
   var geo = new THREE.ConeGeometry(1.4, 8, 20, 1, true); geo.translate(0, -4, 0);
-  var m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.11, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  var m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.045, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   m.position.copy(disco.position); hall.add(m); return m;
 });
 function barTick(t){
+  mcHalo.material.opacity = 0.35 + Math.abs(Math.sin(t * 0.0041)) * 0.25; /* vầng sáng dưới MC nhịp theo nhạc */
   disco.rotation.y = t * 0.0008;
   for (var i = 0; i < beams.length; i++) { beams[i].rotation.z = 0.55 * Math.sin(t * 0.0006 + i * 1.6); beams[i].rotation.x = 0.45 * Math.cos(t * 0.0005 + i * 2.2); }
-  var beat = Math.floor(t / (60000 / 78)); /* đổi màu sàn theo nhịp nhạc nền */
+  var beat = Math.floor(t / (2 * 60000 / 78)); /* đổi màu sàn chậm (2 nhịp/lần), dịu để không giành mắt với sân khấu */
   if (beat !== dfBeat) { dfBeat = beat; drawDanceFloor(beat); }
 }
 var GIFT_ACTS = [
@@ -4378,7 +4394,7 @@ function poseChibi(c, act, k, t, ph){
 function npcBegin(it){
   var bub = makeBubbleSprite(it.line);
   var bs = bub.userData.baseScale; bub.scale.set(bs.x * 1.5, bs.y * 1.5, 1);
-  bub.position.set(0, STAGE_Y + 4.5, STAGE_Z + 1.0); hall.add(bub); npcBubble = bub;
+  bub.position.set(0, STAGE_Y + 5.2, STAGE_Z + 1.3); hall.add(bub); npcBubble = bub;
   try { speakAnnounce(it.line); } catch (e) {}
   npc.userData.talkUntil = elapsedMs() + Math.min(6000, Math.max(1200, it.line.length * 70)); /* MC há mồm theo câu nói */
   var ox = 0, oy = STAGE_Y + 2.6, oz = STAGE_Z + 1.2;
