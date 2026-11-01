@@ -970,8 +970,8 @@ var seats = [];        /* {id,row,col,group,cushionMat,backMat,occupied,name,hit
 var hitMeshes = [];
 var skinTones = [0xf2c9a0, 0xe0ac7e, 0xc98a5e, 0xa96b42, 0x8a5230];
 var shirtColors = [0x2dd4bf, 0xf5c542, 0x5ea8ff, 0xff7a93, 0x9dff70, 0xc39bff, 0xff9d5c, 0x7ee0ff, 0xf2f2f2, 0x334155];
-var names = ['Minh Anh','Tuấn Kiệt','Hương Ly','Văn Đức','Thu Hằng','Quốc Bảo','Phương Nhi','Hoàng Nam','Khánh Linh','Đình Trọng','Mỹ Duyên','Thanh Tùng','Ngọc Trâm'];
-var occupiedIdx = [2, 3, 9, 14, 15, 17, 21, 28, 29, 36, 39, 41, 42, 45]; /* 14 khách; bố trí sẵn các CẶP ngồi cạnh nhau (A3-A4, B7-B8, bạn C5 + C6, D5-D6, F2-F3) để Highlight Cam có cặp kề nhau mà quay */
+var names = ['Minh Anh','Tuấn Kiệt','Hương Ly','Văn Đức','Thu Hằng','Quốc Bảo','Phương Nhi','Hoàng Nam','Khánh Linh','Đình Trọng','Mỹ Duyên','Thanh Tùng','Ngọc Trâm','Gia Huy','Bảo Anh','Thảo My','Đức Anh','Yến Nhi','Minh Khôi','Hà Vy','Trung Kiên','Lan Chi','Quang Huy','Diệu Linh'];
+var occupiedIdx = [2, 3, 9, 14, 15, 17, 21, 28, 29, 36, 39, 41, 42, 45, 0, 6, 11, 12, 24, 26, 31, 33, 34, 47]; /* 24 bot cho sàn nhảy đông vui */ /* 14 khách; bố trí sẵn các CẶP ngồi cạnh nhau (A3-A4, B7-B8, bạn C5 + C6, D5-D6, F2-F3) để Highlight Cam có cặp kề nhau mà quay */
 var mySeatIndex = 20; /* C5 */
 
 function makeSeat(rowLetter){
@@ -4251,7 +4251,15 @@ var MC_CALLS = ['Ai chưa follow thì bấm follow để tối nào cũng gặp 
   'Thả tim thật nhiều cho bar Rạp Live nóng lên nào cả nhà!',
   'Quà từ 500 xu là cả dàn dancer lên sân khấu nha!',
   'Bình luận "lên nhảy" để lên sân khấu nhảy cùng MC Thỏ nào!'];
-function ttPick(a){ return a[Math.floor(Math.random() * a.length)]; }
+function ttPick(a){
+  if (!a || !a.length) return undefined;
+  if (a.length < 3) return a[Math.floor(Math.random() * a.length)];
+  var recent = a.__recent || (a.__recent = []), keep = Math.min(a.length - 1, Math.max(2, Math.floor(a.length * 0.6)));
+  var i, tries = 0;
+  do { i = Math.floor(Math.random() * a.length); } while (recent.indexOf(i) >= 0 && ++tries < 30);
+  recent.push(i); while (recent.length > keep) recent.shift();
+  return a[i]; /* tránh lặp lại các câu vừa dùng gần đây */
+}
 /* mỗi 10 giây một câu: bot chào tên người mới vào, không có ai mới thì bot hô hào; cứ 3 lượt thì MC kêu gọi */
 setInterval(function () {
   if (!sharedIsHost || hlState.filming) return;
@@ -4281,7 +4289,7 @@ function ttPairCmd(type, ev, rec){
   if (!partner || !rec || !rec.avatar) return;
   ttPairNext = now + 12000;
   var ch = hlState.chances;
-  startHighlightFilm(type, rec, partner);
+  hlSkipIntro = true; startHighlightFilm(type, rec, partner); hlSkipIntro = false;
   hlState.chances = ch; /* lệnh từ TikTok không ăn vào 3 lượt Highlight của chủ phòng */
   ttAnnounce(type === 'couple' ? 'Ồ! ' + ev.name + ' muốn ghép đôi! MC ghép với ' + partner.name + ' nè, lên màn LED luôn!'
     : type === 'argue' ? ev.name + ' với ' + partner.name + ' cãi nhau rồi kìa! Camera quay liền!'
@@ -4357,6 +4365,167 @@ setInterval(function () {
   npcQ.unshift({ act: item.act, line: item.line, icon: item.icon }); sharedBroadcast(item); /* MC nhảy cùng ngay, chen lên đầu hàng */
   ledOn('stage');
 }, 1000);
+/* ===================== NÂNG CẤP KHÔNG KHÍ: chống lặp, lấp khoảng lặng, câu hỏi nhanh, Highlight nổi bật, đạo diễn camera ===================== */
+/* --- thêm lời thoại cho đỡ lặp (ttPick đã tránh lặp lại các câu vừa dùng) --- */
+BOT_HYPE.push('Bài này nghe là muốn lắc liền!', 'Đèn sân khấu đẹp ghê luôn á!', 'Ai đang nghe bằng tai nghe giơ tay!',
+  'Tối nay bar Rạp Live chill hết nấc!', 'MC Thỏ ơi nhảy thêm bài nữa đi!', 'Dàn loa này đánh bass đã ghê!',
+  'Ai muốn làm quen thì gõ ghép đôi nè!', 'Mình mới tới mà thấy vui quá trời!', 'Cả nhà nhớ thả tim cho live nha!',
+  'Nhảy đi đừng ngại, ở đây ai cũng quẩy hết!', 'Cho xin một bài sôi động hơn nữa đi MC!', 'Bar này đông vui hơn mình nghĩ luôn!',
+  'Tặng MC một bông hồng đi mọi người!', 'Ai ở Sài Gòn điểm danh nè!', 'Ai ở Hà Nội điểm danh luôn!',
+  'Lên màn LED một lần cho biết đi cả nhà!', 'Nhìn MC lắc hông mà cười xỉu!', 'Ai buồn ngủ thì quẩy cho tỉnh nè!');
+MC_CALLS.push('Ai mới vào thì chào cả bar một câu đi nào!', 'Thả tim đủ nhiều là MC nhảy tiết mục đặc biệt nha!',
+  'Gõ ghép đôi để được ghép cặp với người bên cạnh, lên màn LED liền!', 'Share live cho bạn bè vào quẩy chung đi cả nhà!',
+  'Ai muốn MC xoay một vòng thì tặng bánh vòng nha!', 'Ai muốn lên sân khấu thì gõ lên nhảy, MC chờ nè!');
+MC_HYPE.push('Cả sàn nhảy giơ tay lên nào!', 'Nhạc lên, đèn lên, quẩy lên!', 'MC Thỏ hôm nay phong độ đỉnh cao!',
+  'Ai còn ngồi im thì đứng dậy lắc nào!', 'Bar Rạp Live không có chỗ cho buồn chán!', 'Một hai ba, cả bar cùng nhảy!',
+  'Thương ai thì thả tim cho người đó nha!', 'Đêm nay ai cũng là ngôi sao trên sàn nhảy!');
+hlLines.couple.push(['Từ lúc bạn tới là mình chú ý rồi đó', 'Thật hả? Mình cũng để ý bạn nãy giờ'], ['Nhảy với mình hết bài này nha', 'Ừ, hết đêm luôn cũng được']);
+hlLines.talk.push(['Bạn hay ra bar này không?', 'Lần đầu luôn, mà vui quá trời'], ['MC Thỏ nhảy dễ thương ghê ha', 'Ừ, mình là fan cứng của MC luôn']);
+hlLines.argue.push(['Bài này phải nhảy kiểu này mới đúng!', 'Không, kiểu của mình mới đỉnh!'], ['Chỗ này của mình đứng trước mà!', 'Ai tới trước người đó nhảy chứ!']);
+
+/* --- bot lấp khoảng lặng: người xem thật im lâu thì bot nói dày hơn và gọi tên người xem đang im --- */
+var ttLastRealChat = Date.now(), botNextAt = 0;
+var BOT_NUDGE = ['{n} ơi chat gì đi nè!', '{n} ơi gõ lên nhảy đi, lên sân khấu với MC!', '{n} nhảy với tui không?',
+  '{n} ơi thả tim cho bar đi nào!', 'Chào {n}, bạn thích bài này không?', '{n} ơi gõ ghép đôi thử đi, vui lắm!',
+  '{n} ở đâu đó, chào cả bar cái nè!', '{n} ơi quẩy lên!', '{n} im lặng quá, nói gì đi mà!', 'Ê {n}, ra sàn nhảy chung nè!'];
+setInterval(function () {
+  if (!sharedIsHost || hlState.filming) return;
+  var now = Date.now(); if (now < botNextAt) return;
+  var quiet = now - ttLastRealChat > 20000;
+  botNextAt = now + (quiet ? 3500 + Math.random() * 1500 : 8000);
+  if (!quiet) return; /* bình thường đã có bot nói ~6 giây/câu */
+  var bots = seats.filter(ttIsBot); if (!bots.length) return;
+  var b = ttPick(bots), line;
+  var real = Object.keys(sharedPeers).filter(function (k) { return k.indexOf('tt:') === 0; });
+  if (real.length && Math.random() < 0.45) line = ttPick(BOT_NUDGE).split('{n}').join(sharedPeers[ttPick(real)].name);
+  else line = ttPick(BOT_HYPE);
+  ttChat(b.name, b, line, true);
+}, 1000);
+
+/* --- MC hỏi nhanh ~2 phút/lần, vài bot trả lời theo --- */
+var MC_QUIZ = [
+  { q: 'Câu hỏi nhanh! Ai đang đeo tai nghe gõ số 1, ai nghe loa gõ số 2 nha!', a: ['1', '1 nè', '2', 'số 1 luôn', '2 nha MC'] },
+  { q: 'Mọi người đang xem live ở đâu đó? Gõ tên tỉnh thành đi!', a: ['Hà Nội nè', 'Sài Gòn đây', 'Đà Nẵng nha', 'Cần Thơ nè', 'Hải Phòng!', 'Nha Trang luôn'] },
+  { q: 'Ai thích bài nhạc này thì thả tim liền nào!', a: ['thích lắm luôn', 'nhạc chill quá', 'thả tim rồi nè', 'nghe hoài không chán'] },
+  { q: 'Tối nay ai còn độc thân thì gõ ghép đôi, MC ghép cho nè!', a: ['mình nè MC', 'ghép mình với ai đi', 'độc thân vui tính đây', 'em nè em nè'] },
+  { q: 'Đố cả bar: MC Thỏ có mấy cái tai? Gõ đáp án đi!', a: ['2 tai', 'hai cái', '3 hả', '2 nha MC', 'bốn chứ'] },
+  { q: 'Mọi người đang ăn gì hay uống gì đó? Kể MC nghe với!', a: ['trà sữa nè', 'đang ăn mì', 'cà phê sữa đá', 'nước cam nha', 'bánh tráng trộn'] },
+  { q: 'Ai thức khuya nhất bar đêm nay điểm danh nào!', a: ['mình nè', 'thức tới sáng luôn', 'chưa buồn ngủ', 'điểm danh!'] },
+  { q: 'Chấm điểm điệu nhảy của MC đi, từ 1 tới 10!', a: ['10 điểm', '9 điểm', '100 điểm luôn', '8 thôi', '10 không có nhưng'] },
+  { q: 'Ai muốn lên sân khấu nhảy cùng MC thì gõ lên nhảy nào!', a: ['cho mình lên với', 'lên nè lên nè', 'mình ngại quá', 'để mình lấy can đảm'] }
+];
+var quizNext = Date.now() + 70000;
+setInterval(function () {
+  if (!sharedIsHost || hlState.filming || Date.now() < quizNext) return;
+  quizNext = Date.now() + 110000 + Math.random() * 30000;
+  var q = ttPick(MC_QUIZ); ttAnnounce(q.q);
+  for (var i = 0; i < 3; i++) (function (delay) {
+    setTimeout(function () { var b = ttPick(seats.filter(ttIsBot)); if (b) ttChat(b.name, b, ttPick(q.a), true); }, delay);
+  })(5000 + i * 2300 + Math.random() * 1200);
+}, 2000);
+
+/* --- HIGHLIGHT NỔI BẬT: cột đèn spotlight chiếu thẳng cặp được chọn, hạ đèn bar xuống, camera quay về màn LED --- */
+var hlFocusUntil = 0, hlSpots = [], hlSkipIntro = false;
+var hlSpotGeo = new THREE.ConeGeometry(1.1, 9.4, 24, 1, true); hlSpotGeo.translate(0, -4.7, 0);
+function hlFocus(a, b, dur){
+  if (!a || !b) return;
+  hlFocusUntil = Date.now() + dur;
+  hlSpots.forEach(function (s) { hall.remove(s); }); hlSpots = [];
+  [a, b].forEach(function (rec) {
+    var beam = new THREE.Mesh(hlSpotGeo, new THREE.MeshBasicMaterial({ color: 0xfff1c4, transparent: true, opacity: 0.17, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.set(rec.x, 9.6, rec.z); hall.add(beam);
+    var halo = new THREE.Mesh(new THREE.CircleGeometry(1.0, 32), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    halo.rotation.x = -Math.PI / 2; halo.position.set(rec.x, 0.04, rec.z); hall.add(halo);
+    hlSpots.push(beam, halo);
+  });
+  fxBurst(['✨', '🎉', '💖'], 16, (a.x + b.x) / 2, 2.2, (a.z + b.z) / 2, 2.5);
+}
+function hlFocusTick(t){
+  var on = Date.now() < hlFocusUntil;
+  if (!on && hlSpots.length) { hlSpots.forEach(function (s) { hall.remove(s); }); hlSpots = []; }
+  var k = on ? 0.25 : 1;
+  for (var i = 0; i < beams.length; i++) beams[i].material.opacity = 0.045 * k;
+  danceFloor.material.opacity = 0.16 * k;
+  if (on) for (var j = 1; j < hlSpots.length; j += 2) hlSpots[j].material.opacity = 0.35 + Math.abs(Math.sin(t * 0.006)) * 0.3;
+  return k;
+}
+var HL_MC = {
+  couple: { intro: ['Ồ la la! {a} và {b} được ghép đôi rồi kìa, cả bar vỗ tay nào!', 'Tình yêu sét đánh trên sàn nhảy! Chúc mừng {a} và {b}!', 'Cặp đôi của đêm nay: {a} và {b}! Nhìn lên màn LED nào!', 'Đèn sân khấu xin dành cho {a} và {b}!'],
+            cmt: ['Nhìn ánh mắt {a} kìa, chắc chắn có gì rồi!', '{b} ngại đỏ cả mặt luôn kìa!', 'Ai thấy {a} với {b} hợp nhau thì thả tim đi!', 'MC chấm cặp này mười điểm không có nhưng!', 'Sau đêm nay chắc {a} với {b} hẹn nhau đi trà sữa quá!'] },
+  talk:   { intro: ['{a} và {b} đang tám chuyện rôm rả, cả bar cùng xem nào!', 'Màn LED xin mời {a} và {b}, hai bạn nói gì mà vui vậy!', 'Bàn tròn của đêm nay: {a} và {b}!'],
+            cmt: ['Hai bạn hợp cạ ghê luôn á!', '{a} nói chuyện duyên quá trời!', '{b} cười tươi nhất bar luôn kìa!', 'Chắc là đang khen MC Thỏ đó ha!'] },
+  argue:  { intro: ['Ối dồi ôi! {a} và {b} cãi nhau rồi kìa, camera quay liền!', 'Căng rồi đây! {a} với {b} đang tranh luận nảy lửa!', 'Cả bar chú ý: {a} và {b} đang đấu khẩu trên màn LED!'],
+            cmt: ['Thôi thôi hai bạn ơi, nhảy một bài là hết giận liền!', '{a} nói hăng quá, {b} sắp chịu thua rồi!', 'Ai đứng về phe {a} thì thả tim nào!', 'Giận thì giận mà thương thì thương nha hai bạn!'] }
+};
+function hlMcTalk(type, a, b){
+  var set = HL_MC[type] || HL_MC.talk, an = a.isMine ? myNickname : (a.name || 'bạn'), bn = b.isMine ? myNickname : (b.name || 'bạn');
+  var f = function (s) { return s.split('{a}').join(an).split('{b}').join(bn); };
+  if (!hlSkipIntro) ttAnnounce(f(ttPick(set.intro)));
+  setTimeout(function () { ttAnnounce(f(ttPick(set.cmt))); }, 5500);
+}
+
+/* --- ĐẠO DIỄN CAMERA TỰ ĐỘNG: tự chuyển cảnh (sân khấu / MC / nhóm / cận mặt / cặp / người mới vào), "đập" theo nhịp nhạc.
+       Kéo / cuộn / joystick / phím đi lại là nhường quyền cho bạn 15 giây; có nút bật tắt. --- */
+var dir = { on: true, pauseUntil: 0, shotUntil: 0, lockUntil: 0, active: false, newQ: [], last: performance.now(), kind: '',
+            pos: new THREE.Vector3(), look: new THREE.Vector3(), cur: new THREE.Vector3(), curLook: new THREE.Vector3() };
+try { dir.on = localStorage.getItem('rapDir') !== 'off'; } catch (e) {}
+function dirLockStage(ms){ dir.lockUntil = Date.now() + ms; dir.shotUntil = 0; dir.fastUntil = Date.now() + 1800; } /* Highlight: lao nhanh về sân khấu */
+function dirNewcomer(rec){ if (rec && dir.newQ.length < 4 && dir.newQ.indexOf(rec) < 0) dir.newQ.push(rec); }
+function dirStageShot(spread){ dir.kind = 'stage'; dir.pos.set((Math.random() - 0.5) * spread, 4.4 + Math.random() * 0.6, CAM_HOME_Z + Math.random() * 1.5); dir.look.set(0, 4.2, -9.5); }
+function dirPickShot(){
+  var now = Date.now(), r = Math.random(), s;
+  var busyStage = now < dir.lockUntil || (npcCur && npcCur.act === 'show') || now < stageBusyUntil;
+  if (busyStage) { dirStageShot(1.5); dir.shotUntil = now + 2500; return; } /* Highlight / dancer / người lên sân khấu: màn LED + sân khấu là tâm */
+  if (dir.newQ.length) {
+    s = dir.newQ.shift();
+    if (s.avatar && !s.onStage) { dir.kind = 'new'; dir.pos.set(s.x + 0.8, s.y + 1.75, s.z - 2.6); dir.look.set(s.x, s.y + 1.3, s.z); dir.shotUntil = now + 5500; return; }
+  }
+  var occ = seats.filter(function (q) { return q.occupied && q.avatar && !q.onStage; });
+  if (r < 0.32 || !occ.length) dirStageShot(3);
+  else if (r < 0.5) { dir.kind = 'mc'; dir.pos.set(Math.random() < 0.5 ? -1.6 : 1.6, STAGE_Y + 2.6, STAGE_Z + 6.5); dir.look.set(0, STAGE_Y + 1.9, STAGE_Z + 1.3); }
+  else if (r < 0.7) { s = ttPick(occ); dir.kind = 'crowd'; dir.pos.set(s.x + (Math.random() - 0.5) * 4, 2.8, s.z - 5.5); dir.look.set(s.x, 1.2, s.z + 1.5); }
+  else if (r < 0.86) { s = ttPick(occ); dir.kind = 'face'; dir.pos.set(s.x + 0.6, s.y + 1.7, s.z - 2.3); dir.look.set(s.x, s.y + 1.35, s.z); }
+  else {
+    var prs = adjacentPairs();
+    if (prs.length) { var pr = ttPick(prs), mx = (pr[0].x + pr[1].x) / 2, mz = pr[0].z; dir.kind = 'pair'; dir.pos.set(mx, 2.2, mz - 3.6); dir.look.set(mx, 1.3, mz); }
+    else dirStageShot(2);
+  }
+  dir.shotUntil = now + 5000 + Math.random() * 2500;
+}
+var applyFreeOrbitOrig = applyFreeOrbit;
+applyFreeOrbit = function () {
+  var act = dir.on && camMode === 'third' && Date.now() > dir.pauseUntil;
+  if (!act) { dir.active = false; return applyFreeOrbitOrig(); }
+  var pn = performance.now(), dt = Math.min(0.05, (pn - dir.last) / 1000); dir.last = pn;
+  if (!dir.active) { dir.active = true; dir.cur.copy(camera.position); dir.curLook.copy(lookTarget); dir.shotUntil = 0; }
+  if (Date.now() > dir.shotUntil) dirPickShot();
+  var k = 1 - Math.exp(-dt * (Date.now() < (dir.fastUntil || 0) ? 5 : 1.6));
+  dir.cur.lerp(dir.pos, k); dir.curLook.lerp(dir.look, k);
+  /* "đập" theo nhịp 78 BPM: đầu mỗi nhịp camera dí sát vào chủ thể + nhún nhẹ, rồi nhả ra */
+  var beatMs = 60000 / 78, kick = Math.pow(1 - (pn % beatMs) / beatMs, 4);
+  var dx = dir.curLook.x - dir.cur.x, dy = dir.curLook.y - dir.cur.y, dz = dir.curLook.z - dir.cur.z, len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+  var push = Math.min(0.28, len * 0.04) * kick;
+  camera.position.set(dir.cur.x + dx / len * push + Math.sin(pn * 0.0004) * 0.15, dir.cur.y + dy / len * push + 0.05 * kick, dir.cur.z + dz / len * push);
+  lookTarget.copy(dir.curLook);
+  camera.lookAt(lookTarget);
+  camera.rotateZ(Math.sin(pn * 0.0011) * 0.012);
+};
+function dirUserTookOver(){ if (dir.active) { dir.active = false; syncFreeOrbit(); } dir.pauseUntil = Date.now() + 15000; }
+['pointerdown', 'wheel', 'touchstart'].forEach(function (ev) { renderer.domElement.addEventListener(ev, dirUserTookOver, { passive: true }); });
+var navPadEl = document.getElementById('navPad'); if (navPadEl) navPadEl.addEventListener('pointerdown', dirUserTookOver);
+document.addEventListener('keydown', function (e) { if (/^(w|a|s|d|arrowup|arrowdown|arrowleft|arrowright)$/i.test(e.key) && !/input|textarea/i.test((e.target && e.target.tagName) || '')) dirUserTookOver(); });
+var dirBtn = document.createElement('button');
+dirBtn.type = 'button'; dirBtn.className = 'voiceBtn'; dirBtn.id = 'dirBtn';
+dirBtn.style.top = window.innerWidth <= 680 ? '90px' : '106px';
+document.body.appendChild(dirBtn);
+function dirLabel(){ dirBtn.textContent = dir.on ? '🎥 Tự quay bật' : '🎥 Tự quay tắt'; }
+dirLabel();
+dirBtn.addEventListener('click', function () {
+  dir.on = !dir.on; try { localStorage.setItem('rapDir', dir.on ? 'on' : 'off'); } catch (e) {}
+  if (!dir.on && dir.active) { dir.active = false; syncFreeOrbit(); }
+  dirLabel();
+});
+
 function ttHandle(ev){
   if (!ev || !ev.type) return;
   if (ev.type === 'status') { ttSetStatus(ev.text); return; }
@@ -4364,11 +4533,13 @@ function ttHandle(ev){
   if (ev.type === 'join') {
     /* ai vào live là có nhân vật trên sàn nhảy ngay, nhân vật tự chào (bong bóng + há mồm); MC chào tên ở hàng đợi bên dưới */
     var jr = ttSeat(ev);
+    if (jr && ev.id && !ttGreeted[ev.id]) dirNewcomer(jr);
     if (jr) { var hi = ['👋 Xin chào!', 'Hello cả nhà!', 'Mình tới rồi nè!', 'Quẩy thôi!']; try { showBubble(jr, hi[Math.floor(Math.random() * hi.length)]); } catch (e) {} }
     if (ev.id && !ttGreeted[ev.id]) { ttGreeted[ev.id] = 1; ttJoinNames.push(ev.name); if (ttBotGreetQ.length < 5) ttBotGreetQ.push(ev.name); }
     return;
   }
   if (ev.type === 'chat') {
+    ttLastRealChat = Date.now();
     var m = /gh[eế]\s*([a-f])\s*([1-8])\b/i.exec(ev.text || '');
     var rec = ttSeat(ev, m ? (m[1].toUpperCase() + m[2]) : null);
     ttChat(ev.name, rec, ev.text, true);
@@ -4527,10 +4698,10 @@ function barTick(t){
     var s = spkCones[si], k = on ? 1 + 0.14 * kick : 1;
     s.cone.scale.setScalar(s.r * k); s.dot.scale.setScalar(s.r * 0.3 * k); s.cone.position.z = s.rim.position.z - 0.005 + (on ? 0.04 * kick : 0);
   }
-  var beatN = Math.floor(t / beatMs);
+  var dimK = hlFocusTick(t), beatN = Math.floor(t / beatMs);
   for (var pi = 0; pi < parLights.length; pi++) {
     var p = parLights[pi], lit = (pi + beatN) % 2 === 0;
-    p.beam.material.opacity = lit ? 0.04 + 0.05 * kick : 0.015;
+    p.beam.material.opacity = (lit ? 0.04 + 0.05 * kick : 0.015) * dimK;
     p.lens.visible = lit || kick > 0.5;
   }
   mcHalo.material.opacity = 0.35 + Math.abs(Math.sin(t * 0.0041)) * 0.25; /* vầng sáng dưới MC nhịp theo nhạc */
@@ -4679,12 +4850,14 @@ function hlShowOnLed(kind, a, b, fromNet){
   if (!a || !b) return;
   var pair = [a, b]; pair.until = elapsedMs() + (hlState.filmDur || 10000);
   ledOn('pair', pair);
+  hlFocus(a, b, hlState.filmDur || 10000); dirLockStage(hlState.filmDur || 10000);
   if (fromNet) { try { showHlBanner(kind, (a.name || '') + ' & ' + (b.name || ''), 'Highlight đang chiếu trên màn LED'); } catch (e) {} }
 }
 var startHighlightFilmOrig = startHighlightFilm;
 startHighlightFilm = function (type, a, b) {
   var r = startHighlightFilmOrig(type, a, b);
   hlShowOnLed(type, a, b, false);
+  if (sharedIsHost || !sharedActive) hlMcTalk(type, a, b);
   var m = { type: 'hl-show', kind: type, a: a.id, b: b.id };
   if (sharedActive) { if (sharedIsHost) sharedBroadcast(m); else sharedSendToHost(m); }
   return r;
@@ -4697,6 +4870,7 @@ sharedHandleHostMsg = function (conn, msg) {
 var sharedHandleViewerMsgOrig2 = sharedHandleViewerMsg;
 sharedHandleViewerMsg = function (msg) {
   if (msg && msg.type === 'hl-show') { hlShowOnLed(msg.kind, sharedSeatById(msg.a), sharedSeatById(msg.b), true); return; }
+  if (msg && msg.type === 'peer-seat' && String(msg.peerId).indexOf('tt:') === 0 && !sharedPeers[msg.peerId]) { var r0 = sharedHandleViewerMsgOrig2(msg); dirNewcomer(sharedSeatById(msg.seatId)); return r0; }
   return sharedHandleViewerMsgOrig2(msg);
 };
 /* HÁ MỒM KHI NÓI: nhân vật nào hiện bong bóng chat thì nắp đầu đập lên xuống theo độ dài câu (khớp tương đối với giọng đọc) */
