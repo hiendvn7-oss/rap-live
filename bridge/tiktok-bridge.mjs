@@ -49,7 +49,12 @@ if (arg === '--demo') {
     conn.on('disconnected', () => retry(10000, 'Mất kết nối TikTok'));
     conn.connect()
       .then(() => setStatus('Đã kết nối live @' + arg))
-      .catch(e => retry(15000, 'Chưa kết nối được TikTok (' + (e?.name || e?.message || 'lỗi') + ') — bạn đã bật live chưa?'));
+      .catch(e => {
+        const kind = e?.constructor?.name || e?.name || 'lỗi';
+        retry(15000, kind === 'UserOfflineError'
+          ? '@' + arg + ' chưa bật live — bật live trên TikTok là cầu nối tự kết nối'
+          : 'Chưa kết nối được TikTok (' + kind + ': ' + String(e?.message || '').slice(0, 120) + ')');
+      });
   }
   connect();
 }
