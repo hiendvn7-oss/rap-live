@@ -3769,6 +3769,11 @@ var sharedRoomParam = null;
 /* mã phòng cố định: khán giả chỉ cần mở link trang, không cần ?room= */
 var SHARED_FIXED_ROOM = 'raplive-hiendvn7-oss-main';
 try { sharedRoomParam = new URLSearchParams(window.location.search).get('room'); } catch (e) { sharedRoomParam = null; }
+/* link gửi khán giả luôn là link công khai — kể cả khi chủ phòng mở trang từ cầu nối http://127.0.0.1:8787 */
+function roomPublicBase(){
+  if (location.protocol === 'file:' || /^(127.0.0.1|localhost)$/.test(location.hostname)) return 'https://hiendvn7-oss.github.io/rap-live/';
+  return window.location.href.split('?')[0].split('#')[0];
+}
 function sharedSeatById(id){ for (var i = 0; i < seats.length; i++) { if (seats[i].id === id) return seats[i]; } return null; }
 function sharedUpdateCount(){ var c = 0; seats.forEach(function (s) { if (s.occupied) c++; }); var el = document.getElementById('statViewers'); if (el) el.textContent = c; }
 function sharedFreeSeat(rec){
@@ -3788,7 +3793,7 @@ function sharedRoomBox(){
   document.body.appendChild(box);
   var cp = box.querySelector('#sharedCopyBtn');
   if (cp) cp.addEventListener('click', function () {
-    var base = window.location.href.split('?')[0].split('#')[0];
+    var base = roomPublicBase();
     var link = (!sharedRoomId || sharedRoomId === SHARED_FIXED_ROOM) ? base : (base + '?room=' + encodeURIComponent(sharedRoomId));
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(link).then(function () { toast('Đã sao chép link phòng chung'); }, function () { toast(link); }); }
@@ -4571,7 +4576,7 @@ if (roomLinkToggleEl) roomLinkToggleEl.addEventListener('click', function () {
     box.style.display = 'none'; roomLinkToggleEl.textContent = 'Hiện link phòng'; return;
   }
   if (!sharedIsHost) { toast('Phòng chung chưa mở — đợi vài giây sau khi mở khóa chủ phòng.'); return; }
-  sharedShowRoom('Khán giả chỉ cần mở: ' + window.location.href.split('?')[0].split('#')[0], true);
+  sharedShowRoom('Khán giả chỉ cần mở: ' + roomPublicBase(), true);
   roomLinkToggleEl.textContent = 'Ẩn link phòng';
 });
 /* Chia sẻ màn hình qua phòng chung: chủ phòng gọi media PeerJS tới từng khán giả, khán giả gắn luồng đó lên màn rạp. */

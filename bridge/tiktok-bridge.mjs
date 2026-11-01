@@ -1,14 +1,27 @@
 // Cầu nối TikTok LIVE → Rạp Live.
 // Đọc sự kiện live của bạn (bình luận, người vào, quà, follow, share) rồi gửi sang trang rạp của chủ phòng
 // qua ws://127.0.0.1:8787 — chỉ máy này nghe được, không mở ra ngoài mạng.
+// Cầu nối cũng phục vụ trang rạp ở http://127.0.0.1:8787 cho CHỦ PHÒNG: Chrome chặn trang công khai (github.io)
+// nối vào máy mình (Local Network Access), còn trang mở từ chính 127.0.0.1 thì cùng nguồn nên không bị chặn.
 // Chạy:  node tiktok-bridge.mjs <tên_tiktok>        (thử không cần TikTok:  node tiktok-bridge.mjs --demo)
 import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 
 const PORT = 8787;
 const arg = (process.argv[2] || '').replace(/^@/, '');
 if (!arg) { console.log('Cách dùng: node tiktok-bridge.mjs <tên_tiktok_của_bạn>   hoặc   node tiktok-bridge.mjs --demo'); process.exit(1); }
 
-const wss = new WebSocketServer({ host: '127.0.0.1', port: PORT });
+const PAGE = fileURLToPath(new URL('../index.html', import.meta.url));
+const server = createServer((req, res) => {
+  const path = (req.url || '/').split('?')[0];
+  if (path !== '/' && path !== '/index.html') { res.writeHead(404); res.end(); return; }
+  try { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(readFileSync(PAGE)); }
+  catch (e) { res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' }); res.end('Không đọc được index.html: ' + e.message); }
+});
+const wss = new WebSocketServer({ server });
+server.listen(PORT, '127.0.0.1');
 let status = 'Đang kết nối TikTok…';
 const send = msg => { const s = JSON.stringify(msg); wss.clients.forEach(c => { if (c.readyState === 1) c.send(s); }); };
 const setStatus = text => { status = text; console.log('[TikTok] ' + text); send({ type: 'status', text }); };
@@ -63,4 +76,4 @@ if (arg === '--demo') {
   }
   connect();
 }
-console.log(`Cầu nối đang chạy ở ws://127.0.0.1:${PORT} — mở trang Rạp Live, mở khóa chủ phòng để nối vào.`);
+console.log(`Cầu nối đang chạy. CHỦ PHÒNG mở trang ở  http://127.0.0.1:${PORT}  rồi mở khóa Admin (khách vẫn dùng link GitHub).`);
