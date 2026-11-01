@@ -4223,7 +4223,18 @@ function ttChat(name, rec, text, speak){
   /* không để giọng đọc dồn hàng: đang có câu chờ thì bỏ qua câu này (chữ vẫn hiện) */
   if (speak && rec && !(voiceSynth && voiceSynth.pending)) speakAs(rec, text);
 }
-function ttAnnounce(text){ if (ttAnnounceQ.length < 4) ttAnnounceQ.push(text); }
+function ttAnnounce(text, prio){
+  if (prio) { ttAnnounceQ.unshift(text); if (ttAnnounceQ.length > 6) ttAnnounceQ.pop(); }
+  else if (ttAnnounceQ.length < 6) ttAnnounceQ.push(text);
+}
+/* MC nói 1 câu (chống đọc trùng trong 30 giây — cùng câu có thể tới qua chat lẫn qua hành động npc) + há mồm */
+var mcSaid = {};
+function mcSpeak(text){
+  var now = Date.now(); if (!text || (mcSaid[text] && now - mcSaid[text] < 30000)) return;
+  mcSaid[text] = now;
+  try { speakAnnounce(text); } catch (e) {}
+  if (typeof npc !== 'undefined') npc.userData.talkUntil = elapsedMs() + Math.min(6000, Math.max(1200, text.length * 70));
+}
 setInterval(function () {
   if (ttJoinNames.length) {
     var n = ttJoinNames.splice(0);
@@ -4235,7 +4246,7 @@ setInterval(function () {
 setInterval(function () {
   var t = ttAnnounceQ.shift(); if (!t) return;
   ttChat('MC Thỏ', null, t, false);
-  try { speakAnnounce(t); } catch (e) {}
+  mcSpeak(t);
   if (typeof npc !== 'undefined') npc.userData.talkUntil = elapsedMs() + Math.min(5000, Math.max(1200, t.length * 70)); /* MC há mồm khi chào / cảm ơn */
 }, 4000);
 /* ---------- KHÔNG KHÍ TỰ ĐỘNG + LỆNH ĐÔI ---------- */
@@ -4277,9 +4288,21 @@ function ttNeighbors(rec){
   return out.filter(Boolean);
 }
 /* người xem TikTok gõ "ghép đôi" / "cãi nhau" / "trò chuyện": đứng cạnh một người rồi Highlight Cam quay cặp đó lên màn LED */
+var ttPairPending = [];
+function ttPairQueue(type, ev, rec){
+  if (!ev.id || ttPairPending.length >= 3 || ttPairPending.some(function (p) { return p.ev.id === ev.id; })) return;
+  ttPairPending.push({ type: type, ev: ev, rec: rec });
+  ttAnnounce('Đã nhận nha ' + ev.name + '! Chờ chút xíu, cặp tiếp theo lên màn LED là bạn đó!', true);
+}
+setInterval(function () {
+  if (!sharedIsHost || !ttPairPending.length || hlState.filming || Date.now() < ttPairNext) return;
+  var p = ttPairPending.shift(), pid = 'tt:' + p.ev.id;
+  var cur = sharedPeers[pid] ? sharedSeatById(sharedPeers[pid].seatId) : null;
+  if (cur && cur.avatar) ttPairCmd(p.type, p.ev, cur);
+}, 1000);
 function ttPairCmd(type, ev, rec){
   var now = Date.now();
-  if (hlState.filming || now < ttPairNext) return; /* đang quay cặp khác / hồi 20 giây: bỏ qua cho khỏi spam */
+  if (hlState.filming || now < ttPairNext) { ttPairQueue(type, ev, rec); return; } /* đang quay cặp khác / đang hồi: xếp hàng, MC báo đã nhận */
   var partner = ttNeighbors(rec).filter(function (s) { return s.occupied && s.avatar; })[0];
   for (var i = 0; i < seats.length && !partner; i++) { /* chưa có ai cạnh: dời người bình luận sang chỗ trống cạnh một người khác */
     var s = seats[i]; if (!s.occupied || !s.avatar || s === rec) continue;
@@ -4293,14 +4316,14 @@ function ttPairCmd(type, ev, rec){
   hlState.chances = ch; /* lệnh từ TikTok không ăn vào 3 lượt Highlight của chủ phòng */
   ttAnnounce(type === 'couple' ? 'Ồ! ' + ev.name + ' muốn ghép đôi! MC ghép với ' + partner.name + ' nè, lên màn LED luôn!'
     : type === 'argue' ? ev.name + ' với ' + partner.name + ' cãi nhau rồi kìa! Camera quay liền!'
-    : ev.name + ' đang tám chuyện với ' + partner.name + ', cả bar cùng xem nào!');
+    : ev.name + ' đang tám chuyện với ' + partner.name + ', cả bar cùng xem nào!', true);
 }
 /* TỰ ĐỘNG HIGHLIGHT ~45 giây/lần (người xem TikTok không thao tác được): ưu tiên người xem TikTok thật — tự ghép họ
    với người bên cạnh rồi quay lên màn LED; chưa có ai thì ghép 2 bot đứng cạnh nhau cho sàn luôn có chuyện. */
 var ttAutoHlNext = Date.now() + 10000;
 setInterval(function () {
   var now = Date.now();
-  if (!sharedIsHost || hlState.filming || now < ttAutoHlNext || now < ttPairNext || (typeof npcCur !== 'undefined' && npcCur)) return;
+  if (!sharedIsHost || hlState.filming || now < ttAutoHlNext || now < ttPairNext || ttPairPending.length || (typeof npcCur !== 'undefined' && npcCur)) return; /* lệnh của người xem được ưu tiên */
   ttAutoHlNext = now + 20000; /* Highlight tự động ~20 giây/lần */
   var r = Math.random(), type = r < 0.5 ? 'couple' : r < 0.8 ? 'talk' : 'argue';
   var tts = Object.keys(sharedPeers).filter(function (k) { return k.indexOf('tt:') === 0 && sharedSeatById(sharedPeers[k].seatId); });
@@ -4460,8 +4483,8 @@ var HL_MC = {
 function hlMcTalk(type, a, b){
   var set = HL_MC[type] || HL_MC.talk, an = a.isMine ? myNickname : (a.name || 'bạn'), bn = b.isMine ? myNickname : (b.name || 'bạn');
   var f = function (s) { return s.split('{a}').join(an).split('{b}').join(bn); };
-  if (!hlSkipIntro) ttAnnounce(f(ttPick(set.intro)));
-  setTimeout(function () { ttAnnounce(f(ttPick(set.cmt))); }, 5500);
+  if (!hlSkipIntro) ttAnnounce(f(ttPick(set.intro)), true);
+  setTimeout(function () { ttAnnounce(f(ttPick(set.cmt)), true); }, 5500);
 }
 
 /* --- ĐẠO DIỄN CAMERA TỰ ĐỘNG: tự chuyển cảnh (sân khấu / MC / nhóm / cận mặt / cặp / người mới vào), "đập" theo nhịp nhạc.
@@ -4807,7 +4830,7 @@ function npcBegin(it){
   var bub = makeBubbleSprite(it.line);
   var bs = bub.userData.baseScale; bub.scale.set(bs.x * 1.5, bs.y * 1.5, 1);
   bub.position.set(0, STAGE_Y + 5.2, STAGE_Z + 1.3); hall.add(bub); npcBubble = bub;
-  try { speakAnnounce(it.line); } catch (e) {}
+  mcSpeak(it.line);
   npc.userData.talkUntil = elapsedMs() + Math.min(6000, Math.max(1200, it.line.length * 70)); /* MC há mồm theo câu nói */
   var ox = 0, oy = STAGE_Y + 2.6, oz = STAGE_Z + 1.2;
   if (it.act === 'heart') fxBurst(['❤️', '💖', '💕'], 18, ox, oy, oz, 1.2);
@@ -5039,6 +5062,7 @@ sharedHandleViewerMsg = function (msg) {
   if (msg && msg.type === 'share-stop') { sharedEndRemoteShare(msg.restore); return; }
   if (msg && msg.type === 'clear-bots') { ttClearBots(); return; }
   if (msg && msg.type === 'npc') { npcPlay(msg); return; }
+  if (msg && msg.type === 'chat' && msg.from === 'MC Thỏ' && !msg.seatId) { var rc = sharedHandleViewerMsgOrig(msg); mcSpeak(msg.text); return rc; }
   if (msg && msg.type === 'stage-visit') { stageVisit(sharedSeatById(msg.seatId), msg.dur || 9000, msg.side || 1); return; }
   return sharedHandleViewerMsgOrig(msg);
 };
