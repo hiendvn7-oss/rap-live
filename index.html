@@ -1264,6 +1264,7 @@ function buildFaceParts(headM){
 }
 function applyFaceExpr(P, expr){
   if(!P) return;
+  if(P.bot){ botFace(P, expr); return; } /* Bot Thỏ: biểu cảm bằng mắt lồi */
   function show(o, v){ if(o) o.visible = v; }
   var kind = {grin:'eyeBlack', shy:'eyeBlack', surprised:'eyeBlack', sideeye:'eyeWhite',
               smirk:'eyeLid', sassy:'eyeLid', angry:'eyeLid', laugh:'eyeClosed', love:'eyeHeart'}[expr] || 'eyeBlack';
@@ -1399,49 +1400,112 @@ function makeAvatar(shirt, skin, hairColor, isMe, seed){
   g.userData.head = upper;
   return g;
 }
-/* NHÂN VẬT ĐỨNG ĐỦ TAY CHÂN (khán giả sàn nhảy, MC Thỏ, dancer): đầu to + tai thỏ + mặt giống mascot gốc,
-   thân áo màu, 2 tay có bàn tay, 2 chân có giày. Gốc toạ độ ở mặt sàn, mặt nhìn về -z (sân khấu).
-   Tay giữ quy ước của mascot cũ (armR: baseZ âm, vẫy = baseZ - 2.35) để code highlight dùng chung được. */
+/* NHÂN VẬT "BOT THỎ" (khán giả sàn nhảy, MC Thỏ, dancer): thân tròn như lon, đầu là NẮP bản lề phía sau
+   — khi nói nắp bật lên như há mồm (bên trong có lưỡi + 2 răng), MẮT LỒI to con ngươi đảo lia lịa,
+   tai thỏ ngắn, má hồng, tay ống + bàn tay tròn, chân que nhọn + bàn chân tròn. Gốc toạ độ ở mặt sàn,
+   mặt nhìn về -z (sân khấu). Tay giữ quy ước mascot cũ (armR: baseZ âm, vẫy = baseZ - 2.35) cho code highlight. */
 function makeChibi(bodyColor, accentColor, expr){
   var g = new THREE.Group(), u = g.userData;
-  var creamM = mat(0xfbeecb, 0.55, 0, 0xfbeecb, 0.12), bodyM = mat(bodyColor, 0.55, 0.05), accM = mat(accentColor, 0.45, 0.1);
-  var pinkM = mat(0xf6a8bc, 0.55, 0, 0xf6a8bc, 0.22);
-  var sph = makeChibi.sph || (makeChibi.sph = new THREE.SphereGeometry(1, 18, 12));
-  function ball(m, sx, sy, sz, x, y, z, parent){
-    var o = new THREE.Mesh(sph, OUTLINE_MAT); o.scale.set(sx * 1.07 + 0.008, sy * 1.07 + 0.008, sz * 1.07 + 0.008); o.position.set(x, y, z); parent.add(o);
-    var b = new THREE.Mesh(sph, m); b.scale.set(sx, sy, sz); b.position.set(x, y, z); b.castShadow = true; parent.add(b);
+  var bodyM = mat(bodyColor, 0.45, 0.15), accM = mat(accentColor, 0.45, 0.1), creamM = mat(0xfbeecb, 0.55, 0, 0xfbeecb, 0.12);
+  var pinkM = mat(0xf6a8bc, 0.55, 0, 0xf6a8bc, 0.25), whiteM = mat(0xffffff, 0.3, 0, 0xffffff, 0.15);
+  var mouthM = mat(0x3a0a14, 0.8, 0), tongueM = mat(0xff6f91, 0.5, 0, 0xff6f91, 0.2);
+  var G = makeChibi.geo || (makeChibi.geo = {
+    sph: new THREE.SphereGeometry(1, 18, 12),
+    cyl: new THREE.CylinderGeometry(1, 1, 1, 24),
+    leg: new THREE.CylinderGeometry(0.034, 0.016, 0.34, 10),
+    arm: new THREE.CylinderGeometry(0.026, 0.026, 0.2, 10),
+    lidCap: new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2)
+  });
+  function mesh(geo, m, sx, sy, sz, x, y, z, parent, outline){
+    if(outline){ var o = new THREE.Mesh(geo, OUTLINE_MAT); o.scale.set(sx * 1.06 + 0.008, sy * 1.03 + 0.008, sz * 1.06 + 0.008); o.position.set(x, y, z); parent.add(o); }
+    var b = new THREE.Mesh(geo, m); b.scale.set(sx, sy, sz); b.position.set(x, y, z); b.castShadow = true; parent.add(b);
     return b;
   }
-  var hips = new THREE.Group(); hips.position.y = 0.44; g.add(hips); u.hips = hips;
+  var R = 0.21, BODY_H = 0.4, LID_H = 0.26;
+  var hips = new THREE.Group(); hips.position.y = 0.4; g.add(hips); u.hips = hips;
+  /* chân que nhọn + bàn chân tròn */
   [-1, 1].forEach(function(s){
-    var leg = new THREE.Group(); leg.position.set(s * 0.1, 0.02, 0); hips.add(leg);
-    ball(creamM, 0.065, 0.19, 0.065, 0, -0.2, 0, leg);
-    ball(accM, 0.085, 0.06, 0.12, 0, -0.41, -0.035, leg); /* giày, mũi giày hướng về phía mặt */
+    var leg = new THREE.Group(); leg.position.set(s * 0.09, 0.02, 0); hips.add(leg);
+    mesh(G.leg, bodyM, 1, 1, 1, 0, -0.19, 0, leg, true);
+    mesh(G.sph, accM, 0.06, 0.04, 0.08, 0, -0.37, -0.02, leg, true);
     u[s < 0 ? 'legL' : 'legR'] = leg;
   });
-  ball(bodyM, 0.2, 0.23, 0.165, 0, 0.17, 0, hips);          /* thân áo */
-  ball(creamM, 0.11, 0.12, 0.05, 0, 0.14, -0.135, hips);    /* bụng kem phía trước */
+  /* thân lon: trụ + đáy bo tròn */
+  mesh(G.cyl, bodyM, R, BODY_H, R, 0, BODY_H / 2, 0, hips, true);
+  mesh(G.sph, bodyM, R, 0.09, R, 0, 0.01, 0, hips, true);
+  mesh(G.cyl, accM, R + 0.006, 0.035, R + 0.006, 0, BODY_H - 0.02, 0, hips);  /* viền "môi dưới" màu nhấn */
+  mesh(G.cyl, mouthM, R - 0.015, 0.012, R - 0.015, 0, BODY_H + 0.001, 0, hips); /* lòng miệng tối */
+  mesh(G.sph, tongueM, 0.09, 0.03, 0.08, 0, BODY_H + 0.012, -0.05, hips);       /* lưỡi */
+  /* tay ống + bàn tay tròn, gắn hai bên thân */
   [-1, 1].forEach(function(s){
-    var arm = new THREE.Group(); arm.position.set(s * 0.19, 0.32, 0); arm.rotation.z = s * 0.35; hips.add(arm);
-    ball(bodyM, 0.055, 0.15, 0.055, 0, -0.13, 0, arm);      /* tay áo */
-    ball(creamM, 0.058, 0.058, 0.058, 0, -0.29, 0, arm);    /* bàn tay */
+    var arm = new THREE.Group(); arm.position.set(s * (R + 0.015), 0.3, 0); arm.rotation.z = s * 0.35; hips.add(arm);
+    mesh(G.arm, bodyM, 1, 1, 1, 0, -0.1, 0, arm, true);
+    mesh(G.sph, creamM, 0.05, 0.05, 0.05, 0, -0.22, 0, arm, true);
     arm.userData.baseZ = arm.rotation.z; arm.userData.baseX = 0;
     u[s < 0 ? 'armR' : 'armL'] = arm;
   });
-  var head = new THREE.Group(); head.position.y = 0.4; hips.add(head); u.head = head;
-  var HY = 0.24;
-  ball(creamM, 0.325, 0.29, 0.25, 0, HY, 0, head);
+  /* NẮP ĐẦU: bản lề ở mép sau (z = +R), xoay rotation.x dương là mép trước nhấc lên = há mồm */
+  var lid = new THREE.Group(); lid.position.set(0, BODY_H, R); hips.add(lid); u.lid = lid; u.head = lid;
+  var cz = -R;
+  mesh(G.cyl, bodyM, R, LID_H, R, 0, LID_H / 2, cz, lid, true);
+  mesh(G.sph, bodyM, R, 0.11, R, 0, LID_H, cz, lid, true);
+  mesh(G.cyl, accM, R + 0.006, 0.035, R + 0.006, 0, 0.02, cz, lid);             /* viền "môi trên" */
+  [-1, 1].forEach(function(s){ var th = new THREE.Mesh(G.sph, whiteM); th.scale.set(0.028, 0.03, 0.02); th.position.set(s * 0.045, 0.0, cz - R + 0.02); lid.add(th); }); /* 2 răng thỏ */
+  /* tai thỏ ngắn trên nắp */
   [-1, 1].forEach(function(s){
-    var ear = new THREE.Group(); ear.position.set(s * 0.16, HY + 0.24, 0); ear.rotation.z = -s * 0.12; head.add(ear);
-    ball(creamM, 0.075, 0.19, 0.055, 0, 0.15, 0, ear);
-    var inner = new THREE.Mesh(sph, pinkM); inner.scale.set(0.04, 0.13, 0.02); inner.position.set(0, 0.14, -0.05); ear.add(inner);
+    var ear = new THREE.Group(); ear.position.set(s * 0.11, LID_H + 0.07, cz); ear.rotation.z = -s * 0.2; lid.add(ear);
+    mesh(G.sph, bodyM, 0.055, 0.14, 0.04, 0, 0.12, 0, ear, true);
+    var inner = new THREE.Mesh(G.sph, pinkM); inner.scale.set(0.03, 0.095, 0.015); inner.position.set(0, 0.12, -0.035); ear.add(inner);
   });
-  ball(accM, 0.075, 0.05, 0.045, 0.2, HY + 0.2, -0.06, head); /* nơ màu nhấn trên đầu */
-  ball(accM, 0.075, 0.05, 0.045, 0.32, HY + 0.2, -0.06, head);
-  var fpParts = buildFaceParts(creamM); fpParts.root.position.set(0, HY, 0); head.add(fpParts.root);
-  applyFaceExpr(fpParts, expr || 'grin');
-  u.faceParts = fpParts; u.faceExpr = expr || 'grin';
+  /* mắt lồi: lòng trắng + con ngươi đen (đảo theo thời gian ở botTick) + mí (chỉ hiện khi giận / gian / ngại) */
+  [-1, 1].forEach(function(s){
+    var k = s < 0 ? 'L' : 'R';
+    var eye = new THREE.Group(); eye.position.set(s * 0.088, 0.14, cz - R + 0.01); lid.add(eye);
+    mesh(G.sph, whiteM, 0.095, 0.105, 0.07, 0, 0, 0, eye, true);
+    var pm = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.25 });
+    var pupil = new THREE.Mesh(G.sph, pm); pupil.scale.set(0.045, 0.045, 0.02); pupil.position.set(0, 0, -0.065); eye.add(pupil);
+    var shine = new THREE.Mesh(G.sph, whiteM); shine.scale.set(0.3, 0.3, 0.3); shine.position.set(0.35, 0.35, -0.9); pupil.add(shine);
+    var elid = new THREE.Mesh(G.lidCap, bodyM); elid.scale.set(0.102, 0.112, 0.076); elid.visible = false; eye.add(elid);
+    u['eye' + k] = eye; u['pupil' + k] = pupil; u['elid' + k] = elid;
+    var blush = new THREE.Mesh(G.sph, pinkM); blush.scale.set(0.035, 0.018, 0.01); blush.position.set(s * 0.16, 0.04, cz - R + 0.03); lid.add(blush);
+  });
+  /* faceParts giữ API cũ (applyFaceExpr / setAvatarFace) nhưng vẽ biểu cảm bằng mắt lồi */
+  var P = { root: new THREE.Group(), bot: u };
+  u.faceParts = P; applyFaceExpr(P, expr || 'grin'); u.faceExpr = expr || 'grin';
   return g;
+}
+/* biểu cảm cho Bot Thỏ: đổi con ngươi / mí mắt / độ hé nắp đầu */
+function botFace(P, expr){
+  var u = P.bot, lidOn = false, tilt = 0, ps = 1, sx = 0, squint = 1, col = 0x111111, idle = 0;
+  switch(expr){
+    case 'smirk': case 'sassy': lidOn = true; tilt = 0.25; sx = 0.03; break;
+    case 'angry': lidOn = true; tilt = 0.55; break;
+    case 'shy': lidOn = true; ps = 0.85; break;
+    case 'sideeye': sx = 0.035; break;
+    case 'laugh': squint = 0.3; idle = 0.25; break;
+    case 'surprised': ps = 0.55; idle = 0.12; break;
+    case 'love': col = 0xff3d7f; ps = 1.35; idle = 0.08; break;
+  }
+  ['L', 'R'].forEach(function(k, i){
+    var sgn = i ? 1 : -1;
+    u['elid' + k].visible = lidOn; u['elid' + k].rotation.z = -sgn * tilt;
+    u['eye' + k].scale.y = squint;
+    var p = u['pupil' + k]; p.material.color.setHex(col); p.userData.s = ps; p.userData.sx = sx;
+  });
+  P.idleOpen = idle;
+}
+/* mỗi khung hình: con ngươi đảo lia lịa (mắt lồi), nắp đầu đập lên xuống khi đang nói */
+function botTick(u, t, ph){
+  if(!u || !u.lid) return;
+  var talking = u.talkUntil && t < u.talkUntil;
+  var open = talking ? 0.1 + Math.abs(Math.sin(t * 0.03 + ph)) * 0.5 : (u.faceParts && u.faceParts.idleOpen) || 0;
+  u.lid.rotation.x += (open - u.lid.rotation.x) * 0.35;
+  for(var i = 0; i < 2; i++){
+    var p = u[i ? 'pupilR' : 'pupilL'], s = p.userData.s || 1;
+    p.position.x = (p.userData.sx || 0) + Math.sin(t * 0.0017 + ph + i * 0.5) * 0.024 + (talking ? Math.sin(t * 0.045 + i * 2) * 0.008 : 0);
+    p.position.y = Math.sin(t * 0.0023 + ph * 1.3) * 0.02 + (talking ? Math.cos(t * 0.05 + i) * 0.006 : 0);
+    p.scale.set(0.045 * s, 0.045 * s, 0.02);
+  }
 }
 function makeNameSprite(text, isMe){
   var c = document.createElement('canvas'); c.width = 320; c.height = 84;
@@ -1487,7 +1551,7 @@ function seatAvatar(rec, name, isMe, seed){
   rec.occupied = true; rec.name = name; rec.isMine = !!isMe;
   /* nhân vật đứng đủ tay chân (makeChibi), bọc trong khung lùi 0.46 để code cũ đặt y = rec.y + 0.46 vẫn đứng đúng mặt sàn */
   var inner = makeChibi(shirtColors[seed % shirtColors.length], [0xe63950, 0x2b6cff, 0x2e9e44, 0x6a3fd0, 0xff9d5c][seed % 5], isMe ? myFaceExpr : MEME_EXPRS[seed % MEME_EXPRS.length].id);
-  inner.position.y = -0.46;
+  inner.position.y = -0.46; inner.scale.setScalar(1.25);
   var av = new THREE.Group(); av.add(inner); av.userData = inner.userData;
   av.position.set(rec.x, rec.y + 0.46, rec.z + 0.02);
   av.rotation.y = 0; /* mặt mascot hướng về phía màn hình (-z) */
@@ -3652,6 +3716,7 @@ function animate(){
           ud.armR.rotation.z = ud.armR.userData.baseZ - 0.5 - Math.sin(bt + 0.6) * 0.45;
           ud.legL.rotation.x = Math.max(0, Math.sin(bt)) * 0.35; ud.legR.rotation.x = Math.max(0, -Math.sin(bt)) * 0.35;
         }
+        botTick(ud, t, i);
       }
     });
     updateBubbles(t);
@@ -4147,13 +4212,13 @@ box(23, STAGE_Y, 4.2, mat(0x1b1233, 0.6, 0.15), 0, STAGE_Y / 2, STAGE_Z, hall, t
 box(23.2, 0.07, 0.12, M.gold, 0, STAGE_Y + 0.02, STAGE_Z + 2.1, hall);
 box(23.2, 0.05, 0.05, M.stepLight, 0, STAGE_Y * 0.5, STAGE_Z + 2.13, hall);
 var npc = makeChibi(0xf5c542, 0xe63950, 'grin');
-npc.userData.base = 1.75; npc.scale.setScalar(1.75); npc.rotation.y = Math.PI;
+npc.userData.base = 2.1; npc.scale.setScalar(2.1); npc.rotation.y = Math.PI;
 npc.position.set(0, STAGE_Y, STAGE_Z + 1.0); hall.add(npc);
 var npcTag = makeNameSprite('🎤 MC Thỏ', true);
 npcTag.scale.set(2.0, 0.52, 1); npcTag.position.set(0, STAGE_Y + 3.55, STAGE_Z + 1.0); hall.add(npcTag);
 var dancers = [[-5.6, 0x5edcff, 0x2b6cff], [-2.9, 0xff7ab6, 0xc2185b], [2.9, 0x9cff8a, 0x2e9e44], [5.6, 0xc79bff, 0x6a3fd0]].map(function (d, i) {
   var c = makeChibi(d[1], d[2], MEME_EXPRS[(i + 1) % MEME_EXPRS.length].id);
-  c.userData.base = 1.4; c.scale.setScalar(1.4); c.rotation.y = Math.PI;
+  c.userData.base = 1.7; c.scale.setScalar(1.7); c.rotation.y = Math.PI;
   c.position.set(d[0], STAGE_Y, STAGE_Z - 0.1); c.visible = false; hall.add(c);
   return c;
 });
@@ -4245,12 +4310,14 @@ function poseChibi(c, act, k, t, ph){
   }
   c.position.y = STAGE_Y + y; c.rotation.set(rx, ry, 0); c.scale.setScalar(u.base * sc);
   u.hips.rotation.z = hz; u.armL.rotation.z = aL; u.armR.rotation.z = aR; u.legL.rotation.x = lL; u.legR.rotation.x = lR;
+  botTick(u, t, ph || 0);
 }
 function npcBegin(it){
   var bub = makeBubbleSprite(it.line);
   var bs = bub.userData.baseScale; bub.scale.set(bs.x * 1.5, bs.y * 1.5, 1);
   bub.position.set(0, STAGE_Y + 4.5, STAGE_Z + 1.0); hall.add(bub); npcBubble = bub;
   try { speakAnnounce(it.line); } catch (e) {}
+  npc.userData.talkUntil = elapsedMs() + Math.min(6000, Math.max(1200, it.line.length * 70)); /* MC há mồm theo câu nói */
   var ox = 0, oy = STAGE_Y + 2.6, oz = STAGE_Z + 1.2;
   if (it.act === 'heart') fxBurst(['❤️', '💖', '💕'], 18, ox, oy, oz, 1.2);
   else if (it.act === 'party' || it.act === 'show') fxBurst(['🎉', '✨', '🎊', '💖', '⭐'], it.act === 'show' ? 40 : 28, ox, oy, oz, it.act === 'show' ? 12 : 3);
@@ -4310,6 +4377,13 @@ var sharedHandleViewerMsgOrig2 = sharedHandleViewerMsg;
 sharedHandleViewerMsg = function (msg) {
   if (msg && msg.type === 'hl-show') { hlShowOnLed(msg.kind, sharedSeatById(msg.a), sharedSeatById(msg.b), true); return; }
   return sharedHandleViewerMsgOrig2(msg);
+};
+/* HÁ MỒM KHI NÓI: nhân vật nào hiện bong bóng chat thì nắp đầu đập lên xuống theo độ dài câu (khớp tương đối với giọng đọc) */
+var showBubbleOrig = showBubble;
+showBubble = function (rec, text) {
+  var r = showBubbleOrig(rec, text);
+  if (rec && rec.avatar) rec.avatar.userData.talkUntil = elapsedMs() + Math.min(5000, Math.max(900, String(text || '').length * 70));
+  return r;
 };
 /* BẢNG QUÀ trên màn hình: người xem TikTok thấy tặng quà gì thì MC làm gì. Chủ phòng bấm vào dòng để diễn thử. */
 (function giftBoard(){
